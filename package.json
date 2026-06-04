@@ -1,5 +1,5 @@
 {
-  "name": "mgen-solar-crm-v3-leads",
+  "name": "mgen-solar-crm-v4-supabase",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -10,7 +10,8 @@
   "dependencies": {
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "@supabase/supabase-js": "latest"
   },
   "devDependencies": {
     "typescript": "latest",

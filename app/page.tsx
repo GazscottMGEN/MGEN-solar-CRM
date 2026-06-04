@@ -1,72 +1,42 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
 
 type Lead = {
-  id: number
+  id?: number
   name: string
   address: string
   postcode: string
   phone: string
   email: string
-  monthlyBill: number
-  annualUsage: number
-  roofType: string
+  monthly_bill: number
+  annual_usage: number
+  roof_type: string
   stage: string
   notes: string
 }
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const hasSupabase = Boolean(supabaseUrl && supabaseAnonKey)
+const supabase = hasSupabase ? createClient(supabaseUrl, supabaseAnonKey) : null
+
 const defaultLeads: Lead[] = [
-  {
-    id: 1,
-    name: 'John Smith',
-    address: 'Sunderland',
-    postcode: 'SR1',
-    phone: '07700 900111',
-    email: 'john@example.com',
-    monthlyBill: 180,
-    annualUsage: 4800,
-    roofType: 'South-facing',
-    stage: 'Proposal Sent',
-    notes: 'Hot lead. Proposal viewed multiple times.'
-  },
-  {
-    id: 2,
-    name: 'Sarah Jones',
-    address: 'Newcastle',
-    postcode: 'NE1',
-    phone: '07700 900222',
-    email: 'sarah@example.com',
-    monthlyBill: 145,
-    annualUsage: 4200,
-    roofType: 'East/West',
-    stage: 'Survey Booked',
-    notes: 'Survey booked.'
-  },
-  {
-    id: 3,
-    name: 'Michael Brown',
-    address: 'Durham',
-    postcode: 'DH1',
-    phone: '07700 900333',
-    email: 'michael@example.com',
-    monthlyBill: 160,
-    annualUsage: 4500,
-    roofType: 'Unknown',
-    stage: 'New Lead',
-    notes: 'Needs bill upload.'
-  }
+  { id: 1, name: 'John Smith', address: 'Sunderland', postcode: 'SR1', phone: '07700 900111', email: 'john@example.com', monthly_bill: 180, annual_usage: 4800, roof_type: 'South-facing', stage: 'Proposal Sent', notes: 'Hot lead. Proposal viewed multiple times.' },
+  { id: 2, name: 'Sarah Jones', address: 'Newcastle', postcode: 'NE1', phone: '07700 900222', email: 'sarah@example.com', monthly_bill: 145, annual_usage: 4200, roof_type: 'East/West', stage: 'Survey Booked', notes: 'Survey booked.' },
+  { id: 3, name: 'Michael Brown', address: 'Durham', postcode: 'DH1', phone: '07700 900333', email: 'michael@example.com', monthly_bill: 160, annual_usage: 4500, roof_type: 'Unknown', stage: 'New Lead', notes: 'Needs bill upload.' }
 ]
 
-const emptyForm = {
+const emptyForm: Lead = {
   name: '',
   address: '',
   postcode: '',
   phone: '',
   email: '',
-  monthlyBill: 180,
-  annualUsage: 4800,
-  roofType: 'South-facing',
+  monthly_bill: 180,
+  annual_usage: 4800,
+  roof_type: 'South-facing',
   stage: 'New Lead',
   notes: ''
 }
@@ -80,21 +50,32 @@ export default function Home() {
   const [systemPrice, setSystemPrice] = useState(10500)
   const [modalOpen, setModalOpen] = useState(false)
   const [leads, setLeads] = useState<Lead[]>(defaultLeads)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState<Lead>(emptyForm)
+  const [status, setStatus] = useState(hasSupabase ? 'Connected to Supabase' : 'Supabase env vars not added yet — using browser storage')
 
   useEffect(() => {
-    const saved = localStorage.getItem('mgen-leads')
-    if (saved) {
-      try {
-        setLeads(JSON.parse(saved))
-      } catch {
-        setLeads(defaultLeads)
-      }
-    }
+    loadLeads()
   }, [])
 
+  async function loadLeads() {
+    if (supabase) {
+      const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
+      if (!error && data) {
+        setLeads(data)
+        setStatus('Connected to Supabase')
+        return
+      }
+      setStatus('Supabase table not ready yet — using browser storage')
+    }
+
+    const saved = localStorage.getItem('mgen-leads')
+    if (saved) {
+      try { setLeads(JSON.parse(saved)) } catch { setLeads(defaultLeads) }
+    }
+  }
+
   useEffect(() => {
-    localStorage.setItem('mgen-leads', JSON.stringify(leads))
+    if (!supabase) localStorage.setItem('mgen-leads', JSON.stringify(leads))
   }, [leads])
 
   const calc = useMemo(() => {
@@ -114,7 +95,7 @@ export default function Home() {
   }, [monthlyBill, panels, panelWatts, battery, systemPrice, projectType])
 
   function leadSaving(lead: Lead) {
-    const annualBill = lead.monthlyBill * 12
+    const annualBill = Number(lead.monthly_bill || 0) * 12
     return Math.round(annualBill * 0.78)
   }
 
@@ -123,22 +104,33 @@ export default function Home() {
     setModalOpen(true)
   }
 
-  function saveLead(e: React.FormEvent) {
+  async function saveLead(e: React.FormEvent) {
     e.preventDefault()
 
     const newLead: Lead = {
-      id: Date.now(),
       ...form,
-      monthlyBill: Number(form.monthlyBill),
-      annualUsage: Number(form.annualUsage)
+      monthly_bill: Number(form.monthly_bill),
+      annual_usage: Number(form.annual_usage)
     }
 
-    setLeads([newLead, ...leads])
-    setMonthlyBill(Number(form.monthlyBill))
+    if (supabase) {
+      const { data, error } = await supabase.from('leads').insert([newLead]).select().single()
+      if (!error && data) {
+        setLeads([data, ...leads])
+        setStatus('Lead saved to Supabase')
+      } else {
+        setStatus('Supabase save failed — saved in browser instead')
+        setLeads([{ ...newLead, id: Date.now() }, ...leads])
+      }
+    } else {
+      setLeads([{ ...newLead, id: Date.now() }, ...leads])
+    }
+
+    setMonthlyBill(Number(form.monthly_bill))
     setModalOpen(false)
   }
 
-  function updateForm(field: keyof typeof emptyForm, value: string | number) {
+  function updateForm(field: keyof Lead, value: string | number) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
@@ -182,6 +174,8 @@ export default function Home() {
           <button className="btn primary" onClick={openLeadModal}>+ New Lead</button>
         </div>
 
+        <div className="notice">{status}</div>
+
         <section className="grid4">
           <div className="card"><div className="metricLabel">Active Leads</div><div className="metricValue">{leads.length}</div><div className="metricUp">Live lead count</div></div>
           <div className="card"><div className="metricLabel">Quotes Sent</div><div className="metricValue">{quoteCount}</div><div className="metricUp">From lead stages</div></div>
@@ -193,41 +187,13 @@ export default function Home() {
           <div className="card">
             <h2>{projectType} Solar Calculator</h2>
             <p className="sub">Change the inputs and the recommendation updates instantly.</p>
-
             <div className="formGrid">
-              <div>
-                <label>{projectType === 'Commercial' ? 'Monthly electricity spend' : 'Monthly electricity bill'}</label>
-                <input type="number" value={monthlyBill} onChange={e => setMonthlyBill(Number(e.target.value))} />
-              </div>
-              <div>
-                <label>Number of panels</label>
-                <input type="number" value={panels} onChange={e => setPanels(Number(e.target.value))} />
-              </div>
-              <div>
-                <label>Panel wattage</label>
-                <select value={panelWatts} onChange={e => setPanelWatts(Number(e.target.value))}>
-                  <option value={430}>430W</option>
-                  <option value={440}>440W</option>
-                  <option value={450}>450W</option>
-                  <option value={500}>500W</option>
-                </select>
-              </div>
-              <div>
-                <label>Battery size</label>
-                <select value={battery} onChange={e => setBattery(Number(e.target.value))}>
-                  <option value={0}>No battery</option>
-                  <option value={5}>5kWh</option>
-                  <option value={10}>10kWh</option>
-                  <option value={15}>15kWh</option>
-                  <option value={30}>30kWh Commercial</option>
-                </select>
-              </div>
-              <div>
-                <label>System price</label>
-                <input type="number" value={systemPrice} onChange={e => setSystemPrice(Number(e.target.value))} />
-              </div>
+              <div><label>{projectType === 'Commercial' ? 'Monthly electricity spend' : 'Monthly electricity bill'}</label><input type="number" value={monthlyBill} onChange={e => setMonthlyBill(Number(e.target.value))} /></div>
+              <div><label>Number of panels</label><input type="number" value={panels} onChange={e => setPanels(Number(e.target.value))} /></div>
+              <div><label>Panel wattage</label><select value={panelWatts} onChange={e => setPanelWatts(Number(e.target.value))}><option value={430}>430W</option><option value={440}>440W</option><option value={450}>450W</option><option value={500}>500W</option></select></div>
+              <div><label>Battery size</label><select value={battery} onChange={e => setBattery(Number(e.target.value))}><option value={0}>No battery</option><option value={5}>5kWh</option><option value={10}>10kWh</option><option value={15}>15kWh</option><option value={30}>30kWh Commercial</option></select></div>
+              <div><label>System price</label><input type="number" value={systemPrice} onChange={e => setSystemPrice(Number(e.target.value))} /></div>
             </div>
-
             <div className="resultGrid">
               <div className="resultBox"><span>Recommended System</span><strong>{calc.sizeKw.toFixed(2)}kW</strong></div>
               <div className="resultBox"><span>Estimated Generation</span><strong>{calc.annualGeneration.toLocaleString()} kWh</strong></div>
@@ -243,14 +209,13 @@ export default function Home() {
               <p>Estimated annual saving: £{calc.annualSaving.toLocaleString()}</p>
               <p>Estimated 25-year benefit: £{calc.lifetimeSaving.toLocaleString()}</p>
             </div>
-
             <div className="card">
               <h2>Hot Leads</h2>
               <table>
                 <thead><tr><th>Customer</th><th>Status</th><th>Value</th></tr></thead>
                 <tbody>
                   {leads.slice(0, 3).map((lead) => (
-                    <tr key={lead.id}>
+                    <tr key={lead.id || lead.name}>
                       <td>{lead.name}</td>
                       <td><span className={lead.stage === 'Proposal Sent' ? 'pill hot' : 'pill'}>{lead.stage}</span></td>
                       <td>£{(leadSaving(lead) * 6).toLocaleString()}</td>
@@ -297,7 +262,7 @@ export default function Home() {
             <thead><tr><th>Name</th><th>Address</th><th>Postcode</th><th>Stage</th><th>Estimated Saving</th><th>Next Action</th></tr></thead>
             <tbody>
               {leads.map((lead) => (
-                <tr key={lead.id}>
+                <tr key={lead.id || lead.name}>
                   <td>{lead.name}</td>
                   <td>{lead.address}</td>
                   <td>{lead.postcode}</td>
@@ -341,63 +306,19 @@ export default function Home() {
               </div>
               <button className="btn secondary" onClick={() => setModalOpen(false)}>Close</button>
             </div>
-
             <form onSubmit={saveLead}>
               <div className="formGrid">
-                <div>
-                  <label>Customer name</label>
-                  <input required value={form.name} onChange={e => updateForm('name', e.target.value)} placeholder="e.g. Gary Scott" />
-                </div>
-                <div>
-                  <label>Postcode</label>
-                  <input value={form.postcode} onChange={e => updateForm('postcode', e.target.value)} placeholder="e.g. SR1 1AA" />
-                </div>
-                <div className="full">
-                  <label>Address</label>
-                  <input value={form.address} onChange={e => updateForm('address', e.target.value)} placeholder="Customer address" />
-                </div>
-                <div>
-                  <label>Phone</label>
-                  <input value={form.phone} onChange={e => updateForm('phone', e.target.value)} placeholder="07700 900000" />
-                </div>
-                <div>
-                  <label>Email</label>
-                  <input type="email" value={form.email} onChange={e => updateForm('email', e.target.value)} placeholder="customer@email.com" />
-                </div>
-                <div>
-                  <label>Monthly electricity bill</label>
-                  <input type="number" value={form.monthlyBill} onChange={e => updateForm('monthlyBill', Number(e.target.value))} />
-                </div>
-                <div>
-                  <label>Annual usage</label>
-                  <input type="number" value={form.annualUsage} onChange={e => updateForm('annualUsage', Number(e.target.value))} />
-                </div>
-                <div>
-                  <label>Roof type</label>
-                  <select value={form.roofType} onChange={e => updateForm('roofType', e.target.value)}>
-                    <option>South-facing</option>
-                    <option>East/West</option>
-                    <option>Flat roof</option>
-                    <option>Unknown</option>
-                  </select>
-                </div>
-                <div>
-                  <label>Stage</label>
-                  <select value={form.stage} onChange={e => updateForm('stage', e.target.value)}>
-                    <option>New Lead</option>
-                    <option>Bill Uploaded</option>
-                    <option>Proposal Sent</option>
-                    <option>Survey Booked</option>
-                    <option>Won</option>
-                    <option>Lost</option>
-                  </select>
-                </div>
-                <div className="full">
-                  <label>Notes</label>
-                  <textarea value={form.notes} onChange={e => updateForm('notes', e.target.value)} placeholder="Add any useful sales notes..." />
-                </div>
+                <div><label>Customer name</label><input required value={form.name} onChange={e => updateForm('name', e.target.value)} placeholder="e.g. Gary Scott" /></div>
+                <div><label>Postcode</label><input value={form.postcode} onChange={e => updateForm('postcode', e.target.value)} placeholder="e.g. SR1 1AA" /></div>
+                <div className="full"><label>Address</label><input value={form.address} onChange={e => updateForm('address', e.target.value)} placeholder="Customer address" /></div>
+                <div><label>Phone</label><input value={form.phone} onChange={e => updateForm('phone', e.target.value)} placeholder="07700 900000" /></div>
+                <div><label>Email</label><input type="email" value={form.email} onChange={e => updateForm('email', e.target.value)} placeholder="customer@email.com" /></div>
+                <div><label>Monthly electricity bill</label><input type="number" value={form.monthly_bill} onChange={e => updateForm('monthly_bill', Number(e.target.value))} /></div>
+                <div><label>Annual usage</label><input type="number" value={form.annual_usage} onChange={e => updateForm('annual_usage', Number(e.target.value))} /></div>
+                <div><label>Roof type</label><select value={form.roof_type} onChange={e => updateForm('roof_type', e.target.value)}><option>South-facing</option><option>East/West</option><option>Flat roof</option><option>Unknown</option></select></div>
+                <div><label>Stage</label><select value={form.stage} onChange={e => updateForm('stage', e.target.value)}><option>New Lead</option><option>Bill Uploaded</option><option>Proposal Sent</option><option>Survey Booked</option><option>Won</option><option>Lost</option></select></div>
+                <div className="full"><label>Notes</label><textarea value={form.notes} onChange={e => updateForm('notes', e.target.value)} placeholder="Add any useful sales notes..." /></div>
               </div>
-
               <div className="modalActions">
                 <button type="button" className="btn secondary" onClick={() => setModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn primary">Save Lead</button>
