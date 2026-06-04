@@ -19,31 +19,16 @@ button { cursor: pointer; }
   height: 100vh;
 }
 .logoWrap { text-align: center; margin-bottom: 28px; }
-.logoIcon {
-  width: 82px;
-  height: 82px;
-  margin: 0 auto 12px;
-  border-radius: 22px;
+.logoImage {
+  width: 132px;
+  height: 132px;
+  object-fit: contain;
+  border-radius: 26px;
   background: white;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 18px 45px rgba(0,0,0,.22);
+  padding: 10px;
+  box-shadow: 0 18px 45px rgba(0,0,0,.26);
+  margin-bottom: 14px;
 }
-.logoM {
-  width: 54px;
-  height: 44px;
-  position: relative;
-}
-.logoM:before, .logoM:after {
-  content: "";
-  position: absolute;
-  width: 18px;
-  height: 52px;
-  background: linear-gradient(180deg, #8cc63f, #1f8f46);
-  border-radius: 4px;
-}
-.logoM:before { left: 9px; transform: skew(-28deg); }
-.logoM:after { right: 9px; transform: skew(28deg); }
 .logoText {
   font-size: 34px;
   line-height: .9;

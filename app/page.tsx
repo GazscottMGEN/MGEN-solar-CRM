@@ -25,7 +25,7 @@ export default function Home() {
     <div className="app">
       <aside className="sidebar">
         <div className="logoWrap">
-          <div className="logoIcon"><div className="logoM"></div></div>
+          <img className="logoImage" src="/mgen-logo.png" alt="MGEN Renewables logo" />
           <div className="logoText">MGEN</div>
           <div className="logoSub">RENEWABLES</div>
         </div>
