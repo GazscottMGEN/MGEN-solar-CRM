@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 
 type Lead = {
   id?: number
+  created_at?: string
   name: string
   address: string
   postcode: string
@@ -22,7 +23,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const hasSupabase = Boolean(supabaseUrl && supabaseAnonKey)
 const supabase = hasSupabase ? createClient(supabaseUrl, supabaseAnonKey) : null
 
-const defaultLeads: Lead[] = [
+const demoLeads: Lead[] = [
   { id: 1, name: 'John Smith', address: 'Sunderland', postcode: 'SR1', phone: '07700 900111', email: 'john@example.com', monthly_bill: 180, annual_usage: 4800, roof_type: 'South-facing', stage: 'Proposal Sent', notes: 'Hot lead. Proposal viewed multiple times.' },
   { id: 2, name: 'Sarah Jones', address: 'Newcastle', postcode: 'NE1', phone: '07700 900222', email: 'sarah@example.com', monthly_bill: 145, annual_usage: 4200, roof_type: 'East/West', stage: 'Survey Booked', notes: 'Survey booked.' },
   { id: 3, name: 'Michael Brown', address: 'Durham', postcode: 'DH1', phone: '07700 900333', email: 'michael@example.com', monthly_bill: 160, annual_usage: 4500, roof_type: 'Unknown', stage: 'New Lead', notes: 'Needs bill upload.' }
@@ -41,6 +42,25 @@ const emptyForm: Lead = {
   notes: ''
 }
 
+function calculateLeadSaving(lead: Lead) {
+  const annualBill = Number(lead.monthly_bill || 0) * 12
+  return Math.round(annualBill * 0.78)
+}
+
+function calculateLeadSystem(lead: Lead) {
+  const usage = Number(lead.annual_usage || 0)
+  const recommendedKw = usage > 0 ? usage / 900 : 5
+  const panels = Math.max(8, Math.ceil((recommendedKw * 1000) / 440))
+  const actualKw = (panels * 440) / 1000
+  const battery = usage > 5000 ? 10 : 5
+  const generation = Math.round(actualKw * 900)
+  const annualSaving = calculateLeadSaving(lead)
+  const price = Math.round(2500 + panels * 430 + battery * 650)
+  const payback = annualSaving > 0 ? (price / annualSaving).toFixed(1) : '—'
+  const billReduction = lead.monthly_bill ? Math.round((annualSaving / (lead.monthly_bill * 12)) * 100) : 0
+  return { panels, actualKw, battery, generation, annualSaving, price, payback, billReduction }
+}
+
 export default function Home() {
   const [projectType, setProjectType] = useState<'Domestic' | 'Commercial'>('Domestic')
   const [monthlyBill, setMonthlyBill] = useState(180)
@@ -49,28 +69,33 @@ export default function Home() {
   const [battery, setBattery] = useState(10)
   const [systemPrice, setSystemPrice] = useState(10500)
   const [modalOpen, setModalOpen] = useState(false)
-  const [leads, setLeads] = useState<Lead[]>(defaultLeads)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  const [leads, setLeads] = useState<Lead[]>(demoLeads)
   const [form, setForm] = useState<Lead>(emptyForm)
-  const [status, setStatus] = useState(hasSupabase ? 'Connected to Supabase' : 'Supabase env vars not added yet — using browser storage')
+  const [status, setStatus] = useState(hasSupabase ? 'Connected to Supabase' : 'Supabase env vars not added yet — using demo/browser storage')
 
-  useEffect(() => {
-    loadLeads()
-  }, [])
+  useEffect(() => { loadLeads() }, [])
 
   async function loadLeads() {
     if (supabase) {
       const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
-      if (!error && data) {
+      if (!error && data && data.length > 0) {
         setLeads(data)
         setStatus('Connected to Supabase')
         return
       }
-      setStatus('Supabase table not ready yet — using browser storage')
+      if (!error && data) {
+        setLeads([])
+        setStatus('Connected to Supabase — no leads yet')
+        return
+      }
+      setStatus('Supabase table not ready yet — using demo/browser storage')
     }
 
     const saved = localStorage.getItem('mgen-leads')
     if (saved) {
-      try { setLeads(JSON.parse(saved)) } catch { setLeads(defaultLeads) }
+      try { setLeads(JSON.parse(saved)) } catch { setLeads(demoLeads) }
     }
   }
 
@@ -94,19 +119,18 @@ export default function Home() {
     return { annualBill, sizeKw, annualGeneration, annualSaving, billReduction, payback, lifetimeSaving }
   }, [monthlyBill, panels, panelWatts, battery, systemPrice, projectType])
 
-  function leadSaving(lead: Lead) {
-    const annualBill = Number(lead.monthly_bill || 0) * 12
-    return Math.round(annualBill * 0.78)
-  }
-
   function openLeadModal() {
     setForm(emptyForm)
     setModalOpen(true)
   }
 
+  function openDetail(lead: Lead) {
+    setSelectedLead(lead)
+    setDetailOpen(true)
+  }
+
   async function saveLead(e: React.FormEvent) {
     e.preventDefault()
-
     const newLead: Lead = {
       ...form,
       monthly_bill: Number(form.monthly_bill),
@@ -136,6 +160,8 @@ export default function Home() {
 
   const pipelineValue = leads.length * 9500
   const quoteCount = leads.filter(l => l.stage === 'Proposal Sent' || l.stage === 'Survey Booked').length
+  const firstLead = leads[0]
+  const selectedCalc = selectedLead ? calculateLeadSystem(selectedLead) : null
 
   return (
     <div className="app">
@@ -164,8 +190,8 @@ export default function Home() {
       <main className="main">
         <div className="topbar">
           <div>
-            <h1>MGEN Solar CRM</h1>
-            <div className="sub">Internal sales platform for MGEN Renewables.</div>
+            <h1>MGEN CRM V5</h1>
+            <div className="sub">Live leads, lead profile, proposal status and file placeholders.</div>
           </div>
           <div className="segment">
             <button className={projectType === 'Domestic' ? 'selected' : ''} onClick={() => setProjectType('Domestic')}>Domestic</button>
@@ -177,8 +203,8 @@ export default function Home() {
         <div className="notice">{status}</div>
 
         <section className="grid4">
-          <div className="card"><div className="metricLabel">Active Leads</div><div className="metricValue">{leads.length}</div><div className="metricUp">Live lead count</div></div>
-          <div className="card"><div className="metricLabel">Quotes Sent</div><div className="metricValue">{quoteCount}</div><div className="metricUp">From lead stages</div></div>
+          <div className="card"><div className="metricLabel">Active Leads</div><div className="metricValue">{leads.length}</div><div className="metricUp">Live from Supabase</div></div>
+          <div className="card"><div className="metricLabel">Quotes Sent</div><div className="metricValue">{quoteCount}</div><div className="metricUp">Based on lead stages</div></div>
           <div className="card"><div className="metricLabel">Pipeline Value</div><div className="metricValue">£{Math.round(pipelineValue/1000)}k</div><div className="metricUp">Estimated pipeline</div></div>
           <div className="card"><div className="metricLabel">Conversion Rate</div><div className="metricValue">42%</div><div className="metricUp">Demo metric</div></div>
         </section>
@@ -212,13 +238,13 @@ export default function Home() {
             <div className="card">
               <h2>Hot Leads</h2>
               <table>
-                <thead><tr><th>Customer</th><th>Status</th><th>Value</th></tr></thead>
+                <thead><tr><th>Customer</th><th>Status</th><th>Action</th></tr></thead>
                 <tbody>
                   {leads.slice(0, 3).map((lead) => (
-                    <tr key={lead.id || lead.name}>
+                    <tr key={lead.id || lead.name} className="clickable" onClick={() => openDetail(lead)}>
                       <td>{lead.name}</td>
                       <td><span className={lead.stage === 'Proposal Sent' ? 'pill hot' : 'pill'}>{lead.stage}</span></td>
-                      <td>£{(leadSaving(lead) * 6).toLocaleString()}</td>
+                      <td>Open profile</td>
                     </tr>
                   ))}
                 </tbody>
@@ -227,21 +253,43 @@ export default function Home() {
           </div>
         </section>
 
+        <h2 className="sectionTitle">Live Leads</h2>
+        <section className="card">
+          <table>
+            <thead><tr><th>Name</th><th>Address</th><th>Postcode</th><th>Stage</th><th>Estimated Saving</th><th>Profile</th></tr></thead>
+            <tbody>
+              {leads.map((lead) => (
+                <tr key={lead.id || lead.name} className="clickable" onClick={() => openDetail(lead)}>
+                  <td>{lead.name}</td>
+                  <td>{lead.address}</td>
+                  <td>{lead.postcode}</td>
+                  <td><span className={lead.stage === 'Proposal Sent' ? 'pill hot' : 'pill'}>{lead.stage}</span></td>
+                  <td>£{calculateLeadSaving(lead).toLocaleString()}/yr</td>
+                  <td><span className="pill dark">Open</span></td>
+                </tr>
+              ))}
+              {leads.length === 0 && (
+                <tr><td colSpan={6}>No leads yet. Click + New Lead to add one.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+
         <section className="layout3">
           <div className="card">
             <h2>Customer Journey</h2>
-            <div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Lead Created</div><div className="stepText">Website enquiry added to CRM</div></div></div>
+            <div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Lead Created</div><div className="stepText">Lead saved to CRM</div></div></div>
             <div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Bill Uploaded</div><div className="stepText">Usage ready for recommendation</div></div></div>
             <div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Proposal Sent</div><div className="stepText">MGEN branded proposal issued</div></div></div>
-            <div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Proposal Viewed</div><div className="stepText">Customer opened proposal 3 times</div></div></div>
+            <div className="journeyStep"><div className="dot todo">○</div><div><div className="stepTitle">Proposal Viewed</div><div className="stepText">Tracking placeholder</div></div></div>
             <div className="journeyStep"><div className="dot todo">○</div><div><div className="stepTitle">Survey Booked</div><div className="stepText">Next recommended action</div></div></div>
           </div>
 
           <div className="card">
             <h2>Proposal Engagement</h2>
-            <div className="metricLabel">{leads[0]?.name || 'No lead selected'}</div>
+            <div className="metricLabel">{firstLead?.name || 'No lead selected'}</div>
             <div className="engagementBig">3 views</div>
-            <p className="sub">Last opened today at 7:41pm</p>
+            <p className="sub">Tracking placeholder for customer portal links.</p>
             <div className="resultGrid">
               <div className="resultBox"><span>Time spent</span><strong>11m</strong></div>
               <div className="resultBox"><span>Hot score</span><strong>92%</strong></div>
@@ -250,48 +298,9 @@ export default function Home() {
 
           <div className="card">
             <h2>Next Best Actions</h2>
-            <div className="journeyStep"><div className="dot">1</div><div><div className="stepTitle">Call {leads[0]?.name || 'new lead'}</div><div className="stepText">Highest priority lead</div></div></div>
-            <div className="journeyStep"><div className="dot">2</div><div><div className="stepTitle">Confirm survey</div><div className="stepText">Check booked appointments</div></div></div>
-            <div className="journeyStep"><div className="dot">3</div><div><div className="stepTitle">Request bill</div><div className="stepText">Missing usage data</div></div></div>
-          </div>
-        </section>
-
-        <h2 className="sectionTitle">Leads</h2>
-        <section className="card">
-          <table>
-            <thead><tr><th>Name</th><th>Address</th><th>Postcode</th><th>Stage</th><th>Estimated Saving</th><th>Next Action</th></tr></thead>
-            <tbody>
-              {leads.map((lead) => (
-                <tr key={lead.id || lead.name}>
-                  <td>{lead.name}</td>
-                  <td>{lead.address}</td>
-                  <td>{lead.postcode}</td>
-                  <td><span className={lead.stage === 'Proposal Sent' ? 'pill hot' : 'pill'}>{lead.stage}</span></td>
-                  <td>£{leadSaving(lead).toLocaleString()}/yr</td>
-                  <td>{lead.stage === 'New Lead' ? 'Upload bill' : lead.stage === 'Survey Booked' ? 'Site survey' : 'Call today'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-
-        <h2 className="sectionTitle">Proposal Preview</h2>
-        <section className="layout">
-          <div className="proposalHero">
-            <h2>MGEN Recommended Solar System</h2>
-            <p>{panels} x {panelWatts}W panels + {battery}kWh battery</p>
-            <div className="roofBox">Customer Roof Image<br/>+ Solar Panel Layout Placeholder</div>
-          </div>
-          <div className="card">
-            <h2>Proposal Trust Section</h2>
-            <p className="sub">Accreditation logos will sit here once uploaded.</p>
-            <div className="accred">
-              <div className="badge">MCS</div>
-              <div className="badge">RECC / HIES</div>
-              <div className="badge">TrustMark</div>
-              <div className="badge">NAPIT</div>
-              <div className="badge">Manufacturer Approved</div>
-            </div>
+            <div className="journeyStep"><div className="dot">1</div><div><div className="stepTitle">Call {firstLead?.name || 'new lead'}</div><div className="stepText">Highest priority lead</div></div></div>
+            <div className="journeyStep"><div className="dot">2</div><div><div className="stepTitle">Generate proposal</div><div className="stepText">Use lead data and calculator</div></div></div>
+            <div className="journeyStep"><div className="dot">3</div><div><div className="stepTitle">Request files</div><div className="stepText">Bill, roof photos, plans</div></div></div>
           </div>
         </section>
       </main>
@@ -324,6 +333,87 @@ export default function Home() {
                 <button type="submit" className="btn primary">Save Lead</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {detailOpen && selectedLead && selectedCalc && (
+        <div className="modalOverlay">
+          <div className="modal">
+            <div className="detailHeader">
+              <div>
+                <p className="sub">Lead Profile</p>
+                <h2 className="detailName">{selectedLead.name}</h2>
+                <p className="sub">{selectedLead.address} · {selectedLead.postcode}</p>
+              </div>
+              <button className="btn secondary" onClick={() => setDetailOpen(false)}>Close Profile</button>
+            </div>
+
+            <div className="detailTabs">
+              <span className="pill dark">{selectedLead.stage}</span>
+              <span className="pill">Domestic Solar</span>
+              <span className="pill hot">Proposal Ready</span>
+            </div>
+
+            <section className="layout">
+              <div className="card">
+                <h2>Customer Details</h2>
+                <div className="resultGrid">
+                  <div className="resultBox"><span>Phone</span><strong>{selectedLead.phone || '—'}</strong></div>
+                  <div className="resultBox"><span>Email</span><strong>{selectedLead.email || '—'}</strong></div>
+                  <div className="resultBox"><span>Monthly Bill</span><strong>£{Number(selectedLead.monthly_bill || 0).toLocaleString()}</strong></div>
+                  <div className="resultBox"><span>Annual Usage</span><strong>{Number(selectedLead.annual_usage || 0).toLocaleString()} kWh</strong></div>
+                  <div className="resultBox"><span>Roof Type</span><strong>{selectedLead.roof_type || 'Unknown'}</strong></div>
+                  <div className="resultBox"><span>Stage</span><strong>{selectedLead.stage}</strong></div>
+                </div>
+                <h2 className="sectionTitle">Notes</h2>
+                <p className="sub">{selectedLead.notes || 'No notes added yet.'}</p>
+              </div>
+
+              <div className="card">
+                <h2>Recommended System</h2>
+                <div className="heroSaving">
+                  <div className="big">{selectedCalc.billReduction}%</div>
+                  <div className="label">Expected Bill Reduction</div>
+                </div>
+                <div className="resultGrid">
+                  <div className="resultBox"><span>Panels</span><strong>{selectedCalc.panels} x 440W</strong></div>
+                  <div className="resultBox"><span>System Size</span><strong>{selectedCalc.actualKw.toFixed(2)}kW</strong></div>
+                  <div className="resultBox"><span>Battery</span><strong>{selectedCalc.battery}kWh</strong></div>
+                  <div className="resultBox"><span>Generation</span><strong>{selectedCalc.generation.toLocaleString()} kWh</strong></div>
+                  <div className="resultBox"><span>Annual Saving</span><strong>£{selectedCalc.annualSaving.toLocaleString()}</strong></div>
+                  <div className="resultBox"><span>Payback</span><strong>{selectedCalc.payback} yrs</strong></div>
+                </div>
+              </div>
+            </section>
+
+            <section className="layout3">
+              <div className="card">
+                <h2>Customer Journey</h2>
+                <div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Lead Created</div><div className="stepText">Saved in Supabase</div></div></div>
+                <div className="journeyStep"><div className={selectedLead.annual_usage ? 'dot' : 'dot todo'}>{selectedLead.annual_usage ? '✓' : '○'}</div><div><div className="stepTitle">Usage Added</div><div className="stepText">Annual usage or bill captured</div></div></div>
+                <div className="journeyStep"><div className={selectedLead.stage === 'Proposal Sent' ? 'dot' : 'dot todo'}>{selectedLead.stage === 'Proposal Sent' ? '✓' : '○'}</div><div><div className="stepTitle">Proposal Sent</div><div className="stepText">Proposal status placeholder</div></div></div>
+                <div className="journeyStep"><div className="dot todo">○</div><div><div className="stepTitle">Survey Booked</div><div className="stepText">Next action</div></div></div>
+              </div>
+
+              <div className="card">
+                <h2>Files</h2>
+                <div className="uploadBox">Electricity Bill Upload<br/>Supabase Storage placeholder</div>
+                <br/>
+                <div className="uploadBox">Roof Photos / Plans Upload<br/>Supabase Storage placeholder</div>
+              </div>
+
+              <div className="card">
+                <h2>Proposal</h2>
+                <p className="sub">Generate an MGEN branded proposal using this lead profile.</p>
+                <div className="resultGrid">
+                  <div className="resultBox"><span>Status</span><strong>Draft</strong></div>
+                  <div className="resultBox"><span>Views</span><strong>0</strong></div>
+                </div>
+                <br/>
+                <button className="btn primary">Generate Proposal</button>
+              </div>
+            </section>
           </div>
         </div>
       )}

@@ -1,0 +1,7 @@
+-- MGEN CRM V5 currently works with the existing public.leads table.
+-- Optional future fields can be added later for deeper tracking:
+-- proposal_status text
+-- survey_date date
+-- last_contacted timestamp with time zone
+-- proposal_views integer default 0
+-- hot_score integer default 0
