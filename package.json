@@ -1,5 +1,5 @@
 {
-  "name": "mgen-crm-v9-pdf-proposal",
+  "name": "mgen-crm-v10-proposal-pack",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -12,7 +12,8 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "jspdf": "latest"
+    "jspdf": "latest",
+    "html2canvas": "latest"
   },
   "devDependencies": {
     "typescript": "latest",

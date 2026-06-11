@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 type Lead = {
   id?: number
@@ -45,6 +46,15 @@ type Proposal = {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null
+
+const ASSETS = {
+  mgen: '/logos/mgen-logo.png',
+  mcsNapit: '/logos/NAPIT_MCS_ LARGE_220120.png',
+  recc: '/logos/acs-recc-logo-full-col-horiz-rgb (1).png',
+  trustmark: '/logos/WEB DOCUMENTS LOGO.png',
+  solar: '/logos/images/SOLAR PHOTO.jpg',
+  battery: '/logos/images/FOX ESS BATTERY.jpg',
+}
 
 const emptyLead: Lead = {
   name: '',
@@ -93,6 +103,8 @@ export default function Home() {
   const [form, setForm] = useState<Lead>(emptyLead)
   const [status, setStatus] = useState('Loading...')
   const [fileStatus, setFileStatus] = useState('')
+  const [pdfStatus, setPdfStatus] = useState('')
+  const proposalRef = useRef<HTMLDivElement | null>(null)
   const [commercialMode, setCommercialMode] = useState<'Existing Building' | 'New Build'>('New Build')
   const [roofArea, setRoofArea] = useState(1200)
   const [commercialPanels, setCommercialPanels] = useState(520)
@@ -215,155 +227,32 @@ export default function Home() {
     setProposalModal(true)
   }
 
-  async function downloadProposalPdf(proposal: Proposal, lead: Lead | null, files: LeadFile[]) {
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-    const loadImageAsBase64 = async (url: string): Promise<string | null> => {
+  async function downloadProposalPdf() {
+    if (!proposalRef.current || !selectedProposal) return
+    setPdfStatus('Creating PDF...')
+    try {
+      let pages = Array.from(proposalRef.current.querySelectorAll('.proposalExportPage')) as HTMLElement[]
+      if (pages.length === 0) pages = [proposalRef.current.querySelector('.proposalSheet') as HTMLElement]
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
-  try {
+      for (let i = 0; i < pages.length; i++) {
+        const canvas = await html2canvas(pages[i], {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff'
+        })
+        const imgData = canvas.toDataURL('image/jpeg', 0.95)
+        if (i > 0) pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297)
+      }
 
-    const response = await fetch(url)
-
-    const blob = await response.blob()
-
-    return await new Promise((resolve) => {
-
-      const reader = new FileReader()
-
-      reader.onloadend = () => resolve(reader.result as string)
-
-      reader.onerror = () => resolve(null)
-
-      reader.readAsDataURL(blob)
-
-    })
-
-  } catch {
-
-    return null
-
-  }
-
-}
-
-const mgenLogo = await loadImageAsBase64('/mgen-logo.png')
-
-    const pageW = 210
-    const pageH = 297
-    const green: [number,number,number] = [31,143,70]
-    const dark: [number,number,number] = [7,16,20]
-
-    const annualSaving = Number(proposal.annual_saving || 0)
-    const generation = Number(proposal.annual_generation || 0)
-    const co2 = Math.round(generation * 0.207 / 1000 * 10) / 10
-    const ref = `MGEN-${new Date().getFullYear()}-${String(proposal.id || 1).padStart(4,'0')}`
-    const date = proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')
-
-    function footer(page: number) {
-      doc.setFontSize(9)
-      doc.setTextColor(100)
-      doc.text('MGEN Renewables · Powering smarter energy', 14, 286)
-      doc.text(`Page ${page}`, 186, 286)
+      const safe = (proposalLead?.name || 'customer').replace(/[^a-zA-Z0-9]/g,'-')
+      pdf.save(`MGEN-Proposal-${safe}.pdf`)
+      setPdfStatus('PDF downloaded')
+    } catch (err) {
+      setPdfStatus('PDF export failed. Try again after the images finish loading.')
     }
-
-    // Page 1
-    doc.setFillColor(...dark); doc.rect(0,0,pageW,95,'F')
-    doc.setFillColor(...green); doc.rect(0,95,pageW,18,'F')
-    if (mgenLogo) {
-
-  doc.setFillColor(255, 255, 255)
-
-  doc.roundedRect(14, 14, 28, 28, 4, 4, 'F')
-
-  doc.addImage(mgenLogo, 'PNG', 17, 17, 22, 22)
-
-}
-
-    doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(28)
-    doc.text('Solar PV & Battery Proposal', 50, 28)
-    doc.setFontSize(13); doc.setFont('helvetica','normal')
-    doc.text(`Prepared for ${lead?.name || 'Customer'}`, 50, 40)
-    doc.setFontSize(11)
-    doc.text(`Reference: ${ref}`, 14, 55)
-    doc.text(`Date: ${date}`, 14, 62)
-    doc.text(`Status: ${proposal.proposal_status || 'Draft'}`, 14, 69)
-    doc.setFontSize(10); doc.text('MCS Certified | NAPIT Registered | Blue Drop Warranty Protected', 14, 104)
-
-    doc.setTextColor(20); doc.setFont('helvetica','bold'); doc.setFontSize(16)
-    doc.text('Customer Details', 14, 128)
-    doc.setFont('helvetica','normal'); doc.setFontSize(11)
-    doc.text(`Name: ${lead?.name || '—'}`, 14, 140)
-    doc.text(`Address: ${lead?.address || '—'}`, 14, 148)
-    doc.text(`Postcode: ${lead?.postcode || '—'}`, 14, 156)
-    doc.text(`Phone: ${lead?.phone || '—'}`, 14, 164)
-    doc.text(`Email: ${lead?.email || '—'}`, 14, 172)
-
-    doc.setFillColor(245,248,245); doc.roundedRect(14,190,182,56,4,4,'F')
-    doc.setTextColor(...green); doc.setFont('helvetica','bold'); doc.setFontSize(20)
-    doc.text(`${money(annualSaving)} annual saving`, 24, 210)
-    doc.setTextColor(20); doc.setFontSize(13)
-    doc.text(`${money(annualSaving * 10)} estimated 10 year saving`, 24, 225)
-    doc.text(`${money(annualSaving * 25)} estimated 25 year saving`, 24, 236)
-    footer(1)
-
-    // Page 2
-    doc.addPage()
-    doc.setTextColor(20); doc.setFont('helvetica','bold'); doc.setFontSize(20)
-    doc.text('Recommended System', 14, 22)
-    doc.setFontSize(12); doc.setFont('helvetica','normal')
-    doc.text(`System size: ${proposal.system_size_kw}kW`, 14, 40)
-    doc.text(`Panels: ${proposal.panel_count} high efficiency solar panels`, 14, 50)
-    doc.text(`Battery: ${proposal.battery_kwh}kWh battery storage`, 14, 60)
-    doc.text(`Annual generation: ${generation.toLocaleString()} kWh`, 14, 70)
-    doc.text(`Payback: ${proposal.payback_years} years`, 14, 80)
-    doc.text(`CO2 reduction: ${co2} tonnes per year`, 14, 90)
-
-    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text('Scope of Works', 14, 116)
-    doc.setFont('helvetica','normal'); doc.setFontSize(11)
-    const scope = ['Survey and design confirmation','Solar PV and battery system design','Supply of equipment','Installation and commissioning','Handover pack and monitoring guidance','Post-installation support']
-    scope.forEach((s,i)=>doc.text(`• ${s}`, 18, 130 + i*9))
-
-    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text('Accreditations & Warranty', 14, 202)
-    doc.setFont('helvetica','normal'); doc.setFontSize(11)
-    doc.text('MCS Certified · NAPIT Registered · Blue Drop Insurance Backed Warranty', 14, 216)
-    doc.text('RECC / TrustMark can be added when confirmed and approved.', 14, 226)
-    footer(2)
-
-    // Page 3
-    doc.addPage()
-    doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(20)
-    doc.text('Financial Summary', 14, 22)
-    const boxes = [
-      ['Annual Saving', money(annualSaving)],
-      ['5 Year Saving', money(annualSaving*5)],
-      ['10 Year Saving', money(annualSaving*10)],
-      ['25 Year Saving', money(annualSaving*25)]
-    ]
-    boxes.forEach((b,i)=>{
-      const x = i % 2 === 0 ? 14 : 108
-      const y = i < 2 ? 42 : 82
-      doc.setFillColor(245,248,245); doc.roundedRect(x,y,82,26,3,3,'F')
-      doc.setTextColor(100); doc.setFontSize(9); doc.text(b[0], x+6, y+10)
-      doc.setTextColor(20); doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.text(b[1], x+6, y+20)
-      doc.setFont('helvetica','normal')
-    })
-
-    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text('Uploaded Project Files', 14, 134)
-    doc.setFont('helvetica','normal'); doc.setFontSize(10)
-    if (files.length === 0) {
-      doc.text('No project files have been uploaded against this lead yet.', 14, 148)
-    } else {
-      files.slice(0,10).forEach((f,i)=>doc.text(`• ${f.file_type}: ${f.file_name}`, 18, 148 + i*8))
-    }
-
-    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text('Customer Acceptance', 14, 222)
-    doc.setFont('helvetica','normal'); doc.setFontSize(11)
-    doc.text('I confirm I am happy to proceed based on this proposal.', 14, 236)
-    doc.line(14, 258, 95, 258); doc.text('Customer signature', 14, 266)
-    doc.line(120, 258, 190, 258); doc.text('Date', 120, 266)
-    footer(3)
-
-    const safe = (lead?.name || 'customer').replace(/[^a-zA-Z0-9]/g,'-')
-    doc.save(`MGEN-Proposal-${safe}.pdf`)
   }
 
   const pipeline = leads.length * 9500
@@ -395,7 +284,7 @@ const mgenLogo = await loadImageAsBase64('/mgen-logo.png')
 
       <main className="main">
         <div className="topbar">
-          <div><h1>MGEN CRM V9</h1><div className="sub">{view} · PDF sales proposal</div></div>
+          <div><h1>MGEN CRM V10</h1><div className="sub">{view} · proposal pack</div></div>
           <button className="btn primary" onClick={() => setLeadModal(true)}>+ New Lead</button>
         </div>
 
@@ -430,7 +319,7 @@ const mgenLogo = await loadImageAsBase64('/mgen-logo.png')
         {view === 'Proposals' && (
           <section className="card">
             <h2>Proposals</h2>
-            <p className="sub">V9: preview the sales proposal and download a proper PDF file.</p>
+            <p className="sub">V10: preview the proposal pack and download a matching PDF.</p>
             <table><thead><tr><th>Title</th><th>System</th><th>Panels</th><th>Saving</th><th>Status</th><th>Preview</th></tr></thead><tbody>{proposals.map(p => <tr key={p.id} className="clickable" onClick={()=>openProposal(p)}><td>{p.title}</td><td>{p.system_size_kw}kW</td><td>{p.panel_count}</td><td>{money(Number(p.annual_saving))}</td><td><span className="pill hot">{p.proposal_status}</span></td><td><button className="btn primary small" onClick={(e)=>{e.stopPropagation(); openProposal(p)}}>Preview</button></td></tr>)}{proposals.length===0&&<tr><td colSpan={6}>No proposals yet. Open a lead and click Generate Proposal.</td></tr>}</tbody></table>
           </section>
         )}
@@ -508,11 +397,11 @@ const mgenLogo = await loadImageAsBase64('/mgen-logo.png')
         <div className="modalOverlay"><div className="modal proposalModal">
           <div className="proposalActions">
             <button className="btn secondary" onClick={()=>setProposalModal(false)}>Close</button>
-            <button className="btn dark" onClick={()=>downloadProposalPdf(selectedProposal, proposalLead, proposalFiles)}>Download Proposal PDF</button>
+            <button className="btn dark" onClick={downloadProposalPdf}>Download Proposal PDF</button>
             <button className="btn primary" onClick={()=>alert('Email proposal will be connected in the next version')}>Email Proposal</button>
           </div>
-          <div className="pdfNote">V9 preview below. The PDF button now downloads a file directly instead of opening the browser print screen.</div>
-          <ProposalViewer proposal={selectedProposal} lead={proposalLead} files={proposalFiles} getFileUrl={getFileUrl}/>
+          <div className="pdfNote">{pdfStatus || 'V10 preview below. The PDF download now matches the proposal preview.'}</div>
+          <div ref={proposalRef}><ProposalViewer proposal={selectedProposal} lead={proposalLead} files={proposalFiles} getFileUrl={getFileUrl}/></div>
         </div></div>
       )}
     </div>
@@ -541,11 +430,11 @@ function Profile({lead, leadFiles, fileStatus, uploadLeadFile, getFileUrl, gener
 
 function AccreditationLogos() {
   return <div className="accredStrip">
-    <img className="accredLogo" src="/accreditations/mcs-logo.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
-    <img className="accredLogo" src="/accreditations/napit-logo.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
-    <img className="accredLogo" src="/accreditations/blue-drop-logo.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
-    <img className="accredLogo" src="/accreditations/recc-logo.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
-    <img className="accredLogo" src="/accreditations/trustmark-logo.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+    <img className="accredLogo" src="/logos/NAPIT_MCS_ LARGE_220120.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+    <img className="accredLogo" src="/logos/NAPIT_MCS_ LARGE_220120.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+    <img className="accredLogo" src="/logos/Bluedrop Logo (Hi res).tif" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+    <img className="accredLogo" src="/logos/acs-recc-logo-full-col-horiz-rgb (1).png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+    <img className="accredLogo" src="/logos/WEB DOCUMENTS LOGO.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
     <span className="accredBadge">MCS</span>
     <span className="accredBadge">NAPIT</span>
     <span className="accredBadge">Blue Drop</span>
@@ -562,6 +451,7 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
   const reference = `MGEN-${new Date().getFullYear()}-${String(proposal.id || 1).padStart(4,'0')}`
   const date = proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')
   const imageFiles = files.filter(f => ['roof-photo','commercial-plan'].includes(f.file_type) && !f.file_name.toLowerCase().endsWith('.pdf'))
+  const projectImage = imageFiles[0] ? getFileUrl(imageFiles[0].file_path) : ASSETS.solar
 
   return <div className="proposalSheet">
     <section className="proposalCover">
@@ -607,6 +497,7 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
             <li>Hybrid inverter and monitoring app</li>
             <li>Designed to reduce grid reliance and improve energy control</li>
           </ul>
+          <img className="batteryPhoto" src={ASSETS.battery} alt="Fox ESS battery" />
         </div>
         <div className="proposalDark">
           <h3>Estimated Performance</h3>
@@ -622,7 +513,7 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
       <div className="proposalTwo">
         <div className="proposalSection">
           <h3>Roof / Design Preview</h3>
-          {imageFiles[0] ? <img className="proposalPhoto" src={getFileUrl(imageFiles[0].file_path)} alt="Uploaded roof/design file" /> : <div className="roofPlaceholder">Roof image, panel layout or commercial drawing preview will display here once attached.</div>}
+          <img className="proposalPhoto" src={projectImage} alt="Roof/design preview" />
         </div>
         <div className="proposalSection">
           <h3>Financial Summary</h3>

@@ -1,42 +1,24 @@
-# MGEN CRM V9 - PDF Sales Proposal
+# MGEN CRM V10 - Proposal Pack
 
 Upload the CONTENTS of this folder to GitHub.
 
-V9 adds:
-- Download Proposal PDF button using jsPDF
-- A4 portrait sales proposal structure
-- Accreditation logo strip support
-- Blue Drop Insurance Backed Warranty section
-- Roof/photo file display inside proposal preview
-- Investment section
-- Customer acceptance/signature section
-- Better proposal layout for PDF
+V10 adds:
+- html2canvas + jsPDF PDF export so the download matches the CRM proposal preview better
+- Real proposal asset paths wired in
+- MGEN logo
+- MCS/NAPIT logo
+- RECC logo
+- TrustMark logo
+- Solar drone image
+- Fox ESS battery image
+- Cleaner proposal preview and PDF export
 
-No new Supabase SQL is required if V7/V8 are already working.
+No new Supabase SQL is required.
 
-## Accreditation logos
-
-Add these files into `public/accreditations/` before uploading to GitHub if you have them:
-
-- mcs-logo.png
-- napit-logo.png
-- blue-drop-logo.png
-- recc-logo.png
-- trustmark-logo.png
-
-If a logo is missing, the CRM will show a text badge instead.
-
-## Proposal images
-
-Optional:
-- Add a good solar/drone image as `public/proposal-images/solar-hero.jpg`
-
-## After upload
-
-1. Upload the CONTENTS of this folder to GitHub.
-2. Commit changes.
-3. Wait for Vercel to redeploy.
-4. Open CRM.
-5. Go to Proposals.
-6. Click Preview.
-7. Click Download Proposal PDF.
+After upload:
+1. Commit to GitHub.
+2. Wait for Vercel to redeploy.
+3. Open CRM.
+4. Open Proposals.
+5. Click Preview.
+6. Click Download Proposal PDF.
