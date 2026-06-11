@@ -18,16 +18,19 @@ type Lead = {
   notes: string
 }
 
+type LeadFile = {
+  id?: number
+  lead_id: number
+  file_name: string
+  file_type: string
+  file_path: string
+  created_at?: string
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const hasSupabase = Boolean(supabaseUrl && supabaseAnonKey)
 const supabase = hasSupabase ? createClient(supabaseUrl, supabaseAnonKey) : null
-
-const demoLeads: Lead[] = [
-  { id: 1, name: 'John Smith', address: 'Sunderland', postcode: 'SR1', phone: '07700 900111', email: 'john@example.com', monthly_bill: 180, annual_usage: 4800, roof_type: 'South-facing', stage: 'Proposal Sent', notes: 'Hot lead. Proposal viewed multiple times.' },
-  { id: 2, name: 'Sarah Jones', address: 'Newcastle', postcode: 'NE1', phone: '07700 900222', email: 'sarah@example.com', monthly_bill: 145, annual_usage: 4200, roof_type: 'East/West', stage: 'Survey Booked', notes: 'Survey booked.' },
-  { id: 3, name: 'Michael Brown', address: 'Durham', postcode: 'DH1', phone: '07700 900333', email: 'michael@example.com', monthly_bill: 160, annual_usage: 4500, roof_type: 'Unknown', stage: 'New Lead', notes: 'Needs bill upload.' }
-]
 
 const emptyForm: Lead = {
   name: '',
@@ -71,46 +74,39 @@ export default function Home() {
   const [modalOpen, setModalOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
-  const [leads, setLeads] = useState<Lead[]>(demoLeads)
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [leadFiles, setLeadFiles] = useState<LeadFile[]>([])
   const [form, setForm] = useState<Lead>(emptyForm)
-  const [status, setStatus] = useState(hasSupabase ? 'Connected to Supabase' : 'Supabase env vars not added yet — using demo/browser storage')
+  const [status, setStatus] = useState(hasSupabase ? 'Connected to Supabase' : 'Supabase env vars not added yet')
+  const [fileStatus, setFileStatus] = useState('')
 
   useEffect(() => { loadLeads() }, [])
 
   async function loadLeads() {
     if (supabase) {
       const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
-      if (!error && data && data.length > 0) {
-        setLeads(data)
-        setStatus('Connected to Supabase')
-        return
-      }
       if (!error && data) {
-        setLeads([])
-        setStatus('Connected to Supabase — no leads yet')
+        setLeads(data)
+        setStatus(data.length ? 'Connected to Supabase' : 'Connected to Supabase — no leads yet')
         return
       }
-      setStatus('Supabase table not ready yet — using demo/browser storage')
-    }
-
-    const saved = localStorage.getItem('mgen-leads')
-    if (saved) {
-      try { setLeads(JSON.parse(saved)) } catch { setLeads(demoLeads) }
+      setStatus('Supabase read failed. Check table/policies.')
     }
   }
 
-  useEffect(() => {
-    if (!supabase) localStorage.setItem('mgen-leads', JSON.stringify(leads))
-  }, [leads])
+  async function loadLeadFiles(leadId: number) {
+    if (!supabase) return
+    const { data, error } = await supabase.from('lead_files').select('*').eq('lead_id', leadId).order('created_at', { ascending: false })
+    if (!error && data) setLeadFiles(data)
+    if (error) setFileStatus('File table not ready yet — run V6 SQL.')
+  }
 
   const calc = useMemo(() => {
     const annualBill = monthlyBill * 12
     const sizeKw = (panels * panelWatts) / 1000
     const generationFactor = projectType === 'Commercial' ? 925 : 900
     const annualGeneration = Math.round(sizeKw * generationFactor)
-    const afterSolarFactor = projectType === 'Commercial'
-      ? (battery > 0 ? 0.18 : 0.28)
-      : (battery > 0 ? 0.22 : 0.38)
+    const afterSolarFactor = projectType === 'Commercial' ? (battery > 0 ? 0.18 : 0.28) : (battery > 0 ? 0.22 : 0.38)
     const estimatedAfterSolar = Math.max(annualBill * afterSolarFactor, projectType === 'Commercial' ? 500 : 240)
     const annualSaving = Math.round(annualBill - estimatedAfterSolar)
     const billReduction = Math.round((annualSaving / annualBill) * 100)
@@ -124,18 +120,17 @@ export default function Home() {
     setModalOpen(true)
   }
 
-  function openDetail(lead: Lead) {
+  async function openDetail(lead: Lead) {
     setSelectedLead(lead)
     setDetailOpen(true)
+    setFileStatus('')
+    setLeadFiles([])
+    if (lead.id) await loadLeadFiles(lead.id)
   }
 
   async function saveLead(e: React.FormEvent) {
     e.preventDefault()
-    const newLead: Lead = {
-      ...form,
-      monthly_bill: Number(form.monthly_bill),
-      annual_usage: Number(form.annual_usage)
-    }
+    const newLead: Lead = { ...form, monthly_bill: Number(form.monthly_bill), annual_usage: Number(form.annual_usage) }
 
     if (supabase) {
       const { data, error } = await supabase.from('leads').insert([newLead]).select().single()
@@ -143,19 +138,51 @@ export default function Home() {
         setLeads([data, ...leads])
         setStatus('Lead saved to Supabase')
       } else {
-        setStatus('Supabase save failed — saved in browser instead')
-        setLeads([{ ...newLead, id: Date.now() }, ...leads])
+        setStatus('Supabase save failed. Check RLS policies.')
       }
-    } else {
-      setLeads([{ ...newLead, id: Date.now() }, ...leads])
     }
-
     setMonthlyBill(Number(form.monthly_bill))
     setModalOpen(false)
   }
 
   function updateForm(field: keyof Lead, value: string | number) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function uploadLeadFile(fileType: string, file?: File | null) {
+    if (!file || !selectedLead?.id || !supabase) return
+
+    setFileStatus('Uploading file...')
+    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+    const path = `${selectedLead.id}/${fileType}/${Date.now()}-${safeName}`
+
+    const upload = await supabase.storage.from('lead-files').upload(path, file, { upsert: false })
+    if (upload.error) {
+      setFileStatus('Upload failed. Check Supabase Storage bucket named lead-files and storage policies.')
+      return
+    }
+
+    const record = {
+      lead_id: selectedLead.id,
+      file_name: file.name,
+      file_type: fileType,
+      file_path: path
+    }
+
+    const inserted = await supabase.from('lead_files').insert([record]).select().single()
+    if (inserted.error) {
+      setFileStatus('File uploaded, but database record failed. Run the V6 SQL.')
+      return
+    }
+
+    setLeadFiles([inserted.data, ...leadFiles])
+    setFileStatus('File uploaded and saved against lead')
+  }
+
+  function getPublicUrl(path: string) {
+    if (!supabase) return '#'
+    const { data } = supabase.storage.from('lead-files').getPublicUrl(path)
+    return data.publicUrl
   }
 
   const pipelineValue = leads.length * 9500
@@ -178,20 +205,17 @@ export default function Home() {
           <button>Solar Calculator</button>
           <button>Proposals</button>
           <button>Customer Journey</button>
-          <button>Reports</button>
-          <button>Settings</button>
+          <button>Files</button>
+          <button>Commercial</button>
         </nav>
-        <div className="userBox">
-          <strong>Gary Scott</strong>
-          <span>Sales Manager</span>
-        </div>
+        <div className="userBox"><strong>Gary Scott</strong><span>Sales Manager</span></div>
       </aside>
 
       <main className="main">
         <div className="topbar">
           <div>
-            <h1>MGEN CRM V5</h1>
-            <div className="sub">Live leads, lead profile, proposal status and file placeholders.</div>
+            <h1>MGEN CRM V6</h1>
+            <div className="sub">Live leads with bill, roof photo and commercial plan uploads.</div>
           </div>
           <div className="segment">
             <button className={projectType === 'Domestic' ? 'selected' : ''} onClick={() => setProjectType('Domestic')}>Domestic</button>
@@ -206,7 +230,7 @@ export default function Home() {
           <div className="card"><div className="metricLabel">Active Leads</div><div className="metricValue">{leads.length}</div><div className="metricUp">Live from Supabase</div></div>
           <div className="card"><div className="metricLabel">Quotes Sent</div><div className="metricValue">{quoteCount}</div><div className="metricUp">Based on lead stages</div></div>
           <div className="card"><div className="metricLabel">Pipeline Value</div><div className="metricValue">£{Math.round(pipelineValue/1000)}k</div><div className="metricUp">Estimated pipeline</div></div>
-          <div className="card"><div className="metricLabel">Conversion Rate</div><div className="metricValue">42%</div><div className="metricUp">Demo metric</div></div>
+          <div className="card"><div className="metricLabel">File Centre</div><div className="metricValue">V6</div><div className="metricUp">Bills / roof / plans</div></div>
         </section>
 
         <section className="layout">
@@ -268,70 +292,36 @@ export default function Home() {
                   <td><span className="pill dark">Open</span></td>
                 </tr>
               ))}
-              {leads.length === 0 && (
-                <tr><td colSpan={6}>No leads yet. Click + New Lead to add one.</td></tr>
-              )}
+              {leads.length === 0 && <tr><td colSpan={6}>No leads yet. Click + New Lead to add one.</td></tr>}
             </tbody>
           </table>
         </section>
 
         <section className="layout3">
-          <div className="card">
-            <h2>Customer Journey</h2>
-            <div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Lead Created</div><div className="stepText">Lead saved to CRM</div></div></div>
-            <div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Bill Uploaded</div><div className="stepText">Usage ready for recommendation</div></div></div>
-            <div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Proposal Sent</div><div className="stepText">MGEN branded proposal issued</div></div></div>
-            <div className="journeyStep"><div className="dot todo">○</div><div><div className="stepTitle">Proposal Viewed</div><div className="stepText">Tracking placeholder</div></div></div>
-            <div className="journeyStep"><div className="dot todo">○</div><div><div className="stepTitle">Survey Booked</div><div className="stepText">Next recommended action</div></div></div>
-          </div>
-
-          <div className="card">
-            <h2>Proposal Engagement</h2>
-            <div className="metricLabel">{firstLead?.name || 'No lead selected'}</div>
-            <div className="engagementBig">3 views</div>
-            <p className="sub">Tracking placeholder for customer portal links.</p>
-            <div className="resultGrid">
-              <div className="resultBox"><span>Time spent</span><strong>11m</strong></div>
-              <div className="resultBox"><span>Hot score</span><strong>92%</strong></div>
-            </div>
-          </div>
-
-          <div className="card">
-            <h2>Next Best Actions</h2>
-            <div className="journeyStep"><div className="dot">1</div><div><div className="stepTitle">Call {firstLead?.name || 'new lead'}</div><div className="stepText">Highest priority lead</div></div></div>
-            <div className="journeyStep"><div className="dot">2</div><div><div className="stepTitle">Generate proposal</div><div className="stepText">Use lead data and calculator</div></div></div>
-            <div className="journeyStep"><div className="dot">3</div><div><div className="stepTitle">Request files</div><div className="stepText">Bill, roof photos, plans</div></div></div>
-          </div>
+          <div className="card"><h2>Customer Journey</h2><div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Lead Created</div><div className="stepText">Lead saved to CRM</div></div></div><div className="journeyStep"><div className="dot todo">○</div><div><div className="stepTitle">Files Uploaded</div><div className="stepText">Bill, roof photos or plans</div></div></div><div className="journeyStep"><div className="dot todo">○</div><div><div className="stepTitle">Proposal Generated</div><div className="stepText">Next V7 feature</div></div></div></div>
+          <div className="card"><h2>File Centre</h2><p className="sub">V6 stores bills, roof photos and commercial drawings against each lead.</p><div className="resultBox"><span>Storage bucket</span><strong>lead-files</strong></div></div>
+          <div className="card"><h2>Next Best Actions</h2><div className="journeyStep"><div className="dot">1</div><div><div className="stepTitle">Upload lead files</div><div className="stepText">Start collecting bills and plans</div></div></div><div className="journeyStep"><div className="dot">2</div><div><div className="stepTitle">Generate proposal</div><div className="stepText">Coming in V7</div></div></div></div>
         </section>
       </main>
 
       {modalOpen && (
         <div className="modalOverlay">
           <div className="modal">
-            <div className="modalHead">
-              <div>
-                <h2>Add New Lead</h2>
-                <p className="sub">Create a new MGEN solar opportunity.</p>
-              </div>
-              <button className="btn secondary" onClick={() => setModalOpen(false)}>Close</button>
-            </div>
+            <div className="modalHead"><div><h2>Add New Lead</h2><p className="sub">Create a new MGEN solar opportunity.</p></div><button className="btn secondary" onClick={() => setModalOpen(false)}>Close</button></div>
             <form onSubmit={saveLead}>
               <div className="formGrid">
-                <div><label>Customer name</label><input required value={form.name} onChange={e => updateForm('name', e.target.value)} placeholder="e.g. Gary Scott" /></div>
-                <div><label>Postcode</label><input value={form.postcode} onChange={e => updateForm('postcode', e.target.value)} placeholder="e.g. SR1 1AA" /></div>
-                <div className="full"><label>Address</label><input value={form.address} onChange={e => updateForm('address', e.target.value)} placeholder="Customer address" /></div>
-                <div><label>Phone</label><input value={form.phone} onChange={e => updateForm('phone', e.target.value)} placeholder="07700 900000" /></div>
-                <div><label>Email</label><input type="email" value={form.email} onChange={e => updateForm('email', e.target.value)} placeholder="customer@email.com" /></div>
+                <div><label>Customer name</label><input required value={form.name} onChange={e => updateForm('name', e.target.value)} /></div>
+                <div><label>Postcode</label><input value={form.postcode} onChange={e => updateForm('postcode', e.target.value)} /></div>
+                <div className="full"><label>Address</label><input value={form.address} onChange={e => updateForm('address', e.target.value)} /></div>
+                <div><label>Phone</label><input value={form.phone} onChange={e => updateForm('phone', e.target.value)} /></div>
+                <div><label>Email</label><input type="email" value={form.email} onChange={e => updateForm('email', e.target.value)} /></div>
                 <div><label>Monthly electricity bill</label><input type="number" value={form.monthly_bill} onChange={e => updateForm('monthly_bill', Number(e.target.value))} /></div>
                 <div><label>Annual usage</label><input type="number" value={form.annual_usage} onChange={e => updateForm('annual_usage', Number(e.target.value))} /></div>
-                <div><label>Roof type</label><select value={form.roof_type} onChange={e => updateForm('roof_type', e.target.value)}><option>South-facing</option><option>East/West</option><option>Flat roof</option><option>Unknown</option></select></div>
-                <div><label>Stage</label><select value={form.stage} onChange={e => updateForm('stage', e.target.value)}><option>New Lead</option><option>Bill Uploaded</option><option>Proposal Sent</option><option>Survey Booked</option><option>Won</option><option>Lost</option></select></div>
-                <div className="full"><label>Notes</label><textarea value={form.notes} onChange={e => updateForm('notes', e.target.value)} placeholder="Add any useful sales notes..." /></div>
+                <div><label>Roof type</label><select value={form.roof_type} onChange={e => updateForm('roof_type', e.target.value)}><option>South-facing</option><option>East/West</option><option>Flat roof</option><option>Commercial flat roof</option><option>New build / plans only</option><option>Unknown</option></select></div>
+                <div><label>Stage</label><select value={form.stage} onChange={e => updateForm('stage', e.target.value)}><option>New Lead</option><option>Bill Uploaded</option><option>Plans Uploaded</option><option>Proposal Sent</option><option>Survey Booked</option><option>Won</option><option>Lost</option></select></div>
+                <div className="full"><label>Notes</label><textarea value={form.notes} onChange={e => updateForm('notes', e.target.value)} /></div>
               </div>
-              <div className="modalActions">
-                <button type="button" className="btn secondary" onClick={() => setModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn primary">Save Lead</button>
-              </div>
+              <div className="modalActions"><button type="button" className="btn secondary" onClick={() => setModalOpen(false)}>Cancel</button><button type="submit" className="btn primary">Save Lead</button></div>
             </form>
           </div>
         </div>
@@ -341,19 +331,11 @@ export default function Home() {
         <div className="modalOverlay">
           <div className="modal">
             <div className="detailHeader">
-              <div>
-                <p className="sub">Lead Profile</p>
-                <h2 className="detailName">{selectedLead.name}</h2>
-                <p className="sub">{selectedLead.address} · {selectedLead.postcode}</p>
-              </div>
+              <div><p className="sub">Lead Profile</p><h2 className="detailName">{selectedLead.name}</h2><p className="sub">{selectedLead.address} · {selectedLead.postcode}</p></div>
               <button className="btn secondary" onClick={() => setDetailOpen(false)}>Close Profile</button>
             </div>
 
-            <div className="detailTabs">
-              <span className="pill dark">{selectedLead.stage}</span>
-              <span className="pill">Domestic Solar</span>
-              <span className="pill hot">Proposal Ready</span>
-            </div>
+            <div className="detailTabs"><span className="pill dark">{selectedLead.stage}</span><span className="pill">Files: {leadFiles.length}</span><span className="pill hot">V6 Upload Centre</span></div>
 
             <section className="layout">
               <div className="card">
@@ -372,10 +354,7 @@ export default function Home() {
 
               <div className="card">
                 <h2>Recommended System</h2>
-                <div className="heroSaving">
-                  <div className="big">{selectedCalc.billReduction}%</div>
-                  <div className="label">Expected Bill Reduction</div>
-                </div>
+                <div className="heroSaving"><div className="big">{selectedCalc.billReduction}%</div><div className="label">Expected Bill Reduction</div></div>
                 <div className="resultGrid">
                   <div className="resultBox"><span>Panels</span><strong>{selectedCalc.panels} x 440W</strong></div>
                   <div className="resultBox"><span>System Size</span><strong>{selectedCalc.actualKw.toFixed(2)}kW</strong></div>
@@ -389,23 +368,40 @@ export default function Home() {
 
             <section className="layout3">
               <div className="card">
-                <h2>Customer Journey</h2>
-                <div className="journeyStep"><div className="dot">✓</div><div><div className="stepTitle">Lead Created</div><div className="stepText">Saved in Supabase</div></div></div>
-                <div className="journeyStep"><div className={selectedLead.annual_usage ? 'dot' : 'dot todo'}>{selectedLead.annual_usage ? '✓' : '○'}</div><div><div className="stepTitle">Usage Added</div><div className="stepText">Annual usage or bill captured</div></div></div>
-                <div className="journeyStep"><div className={selectedLead.stage === 'Proposal Sent' ? 'dot' : 'dot todo'}>{selectedLead.stage === 'Proposal Sent' ? '✓' : '○'}</div><div><div className="stepTitle">Proposal Sent</div><div className="stepText">Proposal status placeholder</div></div></div>
-                <div className="journeyStep"><div className="dot todo">○</div><div><div className="stepTitle">Survey Booked</div><div className="stepText">Next action</div></div></div>
+                <h2>Upload Files</h2>
+                <p className="sub">Files will be saved in Supabase Storage against this lead.</p>
+                {fileStatus && <div className={fileStatus.includes('failed') || fileStatus.includes('Check') ? 'notice warn' : 'notice'}>{fileStatus}</div>}
+                <div className="uploadBox">
+                  Electricity Bill
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => uploadLeadFile('bill', e.target.files?.[0])} />
+                </div>
+                <div className="uploadBox">
+                  Roof Photos
+                  <input type="file" accept=".jpg,.jpeg,.png,.heic,.pdf" onChange={e => uploadLeadFile('roof-photo', e.target.files?.[0])} />
+                </div>
+                <div className="uploadBox">
+                  Commercial Plans / Drawings
+                  <input type="file" accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png" onChange={e => uploadLeadFile('commercial-plan', e.target.files?.[0])} />
+                </div>
               </div>
 
               <div className="card">
-                <h2>Files</h2>
-                <div className="uploadBox">Electricity Bill Upload<br/>Supabase Storage placeholder</div>
-                <br/>
-                <div className="uploadBox">Roof Photos / Plans Upload<br/>Supabase Storage placeholder</div>
+                <h2>Lead Files</h2>
+                {leadFiles.length === 0 && <p className="sub">No files uploaded yet.</p>}
+                {leadFiles.map(file => (
+                  <div className="fileRow" key={file.id || file.file_path}>
+                    <div>
+                      <div className="fileName">{file.file_name}</div>
+                      <div className="fileMeta">{file.file_type}</div>
+                    </div>
+                    <a className="btn secondary small" href={getPublicUrl(file.file_path)} target="_blank">Open</a>
+                  </div>
+                ))}
               </div>
 
               <div className="card">
                 <h2>Proposal</h2>
-                <p className="sub">Generate an MGEN branded proposal using this lead profile.</p>
+                <p className="sub">V7 will generate branded MGEN proposals using lead data and uploaded files.</p>
                 <div className="resultGrid">
                   <div className="resultBox"><span>Status</span><strong>Draft</strong></div>
                   <div className="resultBox"><span>Views</span><strong>0</strong></div>

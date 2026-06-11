@@ -1,18 +1,15 @@
-# MGEN CRM V5
+# MGEN CRM V6 - File Upload Centre
 
-Fresh deployable Next.js package.
+Includes:
+- Live Supabase leads
+- Lead detail/profile
+- Upload electricity bills
+- Upload roof photos
+- Upload commercial plans/drawings
+- Lead files list
+- File metadata table: lead_files
 
-## Includes
-- Live Supabase lead loading
-- New Lead form
-- Lead Detail/Profile modal
-- Customer journey panel
-- Proposal section placeholder
-- Bill upload placeholder
-- Roof photo/plans upload placeholder
-
-## Deployment
-Upload the contents of this folder to GitHub, commit, and Vercel will redeploy.
-Requires existing Vercel env vars:
-- NEXT_PUBLIC_SUPABASE_URL
-- NEXT_PUBLIC_SUPABASE_ANON_KEY
+Before testing uploads:
+1. Run supabase-v6-file-upload.sql in Supabase SQL Editor.
+2. Create a PUBLIC Supabase Storage bucket called: lead-files
+3. Upload this folder's contents to GitHub and let Vercel redeploy.
