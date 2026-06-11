@@ -215,8 +215,38 @@ export default function Home() {
     setProposalModal(true)
   }
 
-  function downloadProposalPdf(proposal: Proposal, lead: Lead | null, files: LeadFile[]) {
+  async function downloadProposalPdf(proposal: Proposal, lead: Lead | null, files: LeadFile[]) {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    const loadImageAsBase64 = async (url: string): Promise<string | null> => {
+
+  try {
+
+    const response = await fetch(url)
+
+    const blob = await response.blob()
+
+    return await new Promise((resolve) => {
+
+      const reader = new FileReader()
+
+      reader.onloadend = () => resolve(reader.result as string)
+
+      reader.onerror = () => resolve(null)
+
+      reader.readAsDataURL(blob)
+
+    })
+
+  } catch {
+
+    return null
+
+  }
+
+}
+
+const mgenLogo = await loadImageAsBase64('/mgen-logo.png')
+
     const pageW = 210
     const pageH = 297
     const green: [number,number,number] = [31,143,70]
@@ -238,10 +268,20 @@ export default function Home() {
     // Page 1
     doc.setFillColor(...dark); doc.rect(0,0,pageW,95,'F')
     doc.setFillColor(...green); doc.rect(0,95,pageW,18,'F')
+    if (mgenLogo) {
+
+  doc.setFillColor(255, 255, 255)
+
+  doc.roundedRect(14, 14, 28, 28, 4, 4, 'F')
+
+  doc.addImage(mgenLogo, 'PNG', 17, 17, 22, 22)
+
+}
+
     doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(28)
-    doc.text('Solar PV & Battery Proposal', 14, 28)
+    doc.text('Solar PV & Battery Proposal', 50, 28)
     doc.setFontSize(13); doc.setFont('helvetica','normal')
-    doc.text(`Prepared for ${lead?.name || 'Customer'}`, 14, 40)
+    doc.text(`Prepared for ${lead?.name || 'Customer'}`, 50, 40)
     doc.setFontSize(11)
     doc.text(`Reference: ${ref}`, 14, 55)
     doc.text(`Date: ${date}`, 14, 62)
