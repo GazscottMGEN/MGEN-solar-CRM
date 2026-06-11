@@ -1,15 +1,18 @@
-# MGEN CRM V6 - File Upload Centre
+# MGEN CRM V7
+
+Upload the CONTENTS of this folder to GitHub.
 
 Includes:
-- Live Supabase leads
-- Lead detail/profile
-- Upload electricity bills
-- Upload roof photos
-- Upload commercial plans/drawings
-- Lead files list
-- File metadata table: lead_files
+- Working sidebar navigation
+- Leads page
+- File centre
+- Proposal records
+- Commercial calculator
+- Lead profile
+- Supabase-ready uploads
 
-Before testing uploads:
-1. Run supabase-v6-file-upload.sql in Supabase SQL Editor.
-2. Create a PUBLIC Supabase Storage bucket called: lead-files
-3. Upload this folder's contents to GitHub and let Vercel redeploy.
+Before testing files/proposals:
+1. Run `supabase-v7-setup.sql` in Supabase SQL Editor.
+2. Create a public Supabase Storage bucket named `lead-files`.
+3. Commit this code to GitHub.
+4. Let Vercel redeploy.
