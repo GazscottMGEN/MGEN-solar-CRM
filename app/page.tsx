@@ -79,6 +79,10 @@ export default function Home() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [leadFiles, setLeadFiles] = useState<LeadFile[]>([])
   const [proposals, setProposals] = useState<Proposal[]>([])
+  const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
+  const [proposalLead, setProposalLead] = useState<Lead | null>(null)
+  const [proposalFiles, setProposalFiles] = useState<LeadFile[]>([])
+  const [proposalModal, setProposalModal] = useState(false)
   const [leadModal, setLeadModal] = useState(false)
   const [profileModal, setProfileModal] = useState(false)
   const [form, setForm] = useState<Lead>(emptyLead)
@@ -189,6 +193,23 @@ export default function Home() {
     }
   }
 
+  async function openProposal(proposal: Proposal) {
+    setSelectedProposal(proposal)
+    const localLead = leads.find(l => l.id === proposal.lead_id) || null
+    setProposalLead(localLead)
+    setProposalFiles([])
+
+    if (supabase && proposal.lead_id) {
+      const { data: freshLead } = await supabase.from('leads').select('*').eq('id', proposal.lead_id).single()
+      if (freshLead) setProposalLead(freshLead)
+
+      const { data: files } = await supabase.from('lead_files').select('*').eq('lead_id', proposal.lead_id).order('created_at', { ascending: false })
+      if (files) setProposalFiles(files)
+    }
+
+    setProposalModal(true)
+  }
+
   const pipeline = leads.length * 9500
   const quoteCount = leads.filter(l => ['Proposal Sent','Survey Booked','Won'].includes(l.stage)).length
   const firstLead = leads[0]
@@ -218,7 +239,7 @@ export default function Home() {
 
       <main className="main">
         <div className="topbar">
-          <div><h1>MGEN CRM V7</h1><div className="sub">{view} · live Supabase CRM</div></div>
+          <div><h1>MGEN CRM V8</h1><div className="sub">{view} · Proposal Engine</div></div>
           <button className="btn primary" onClick={() => setLeadModal(true)}>+ New Lead</button>
         </div>
 
@@ -251,7 +272,11 @@ export default function Home() {
         )}
 
         {view === 'Proposals' && (
-          <section className="card"><h2>Proposals</h2><table><thead><tr><th>Title</th><th>System</th><th>Panels</th><th>Saving</th><th>Status</th></tr></thead><tbody>{proposals.map(p => <tr key={p.id}><td>{p.title}</td><td>{p.system_size_kw}kW</td><td>{p.panel_count}</td><td>£{Number(p.annual_saving).toLocaleString()}</td><td><span className="pill hot">{p.proposal_status}</span></td></tr>)}{proposals.length===0&&<tr><td colSpan={5}>No proposals yet. Open a lead and click Generate Proposal.</td></tr>}</tbody></table></section>
+          <section className="card">
+            <h2>Proposals</h2>
+            <p className="sub">V8: click Preview to open a customer-facing proposal document.</p>
+            <table><thead><tr><th>Title</th><th>System</th><th>Panels</th><th>Saving</th><th>Status</th><th>Preview</th></tr></thead><tbody>{proposals.map(p => <tr key={p.id} className="clickable" onClick={()=>openProposal(p)}><td>{p.title}</td><td>{p.system_size_kw}kW</td><td>{p.panel_count}</td><td>£{Number(p.annual_saving).toLocaleString()}</td><td><span className="pill hot">{p.proposal_status}</span></td><td><button className="btn primary small" onClick={(e)=>{e.stopPropagation(); openProposal(p)}}>Preview</button></td></tr>)}{proposals.length===0&&<tr><td colSpan={6}>No proposals yet. Open a lead and click Generate Proposal.</td></tr>}</tbody></table>
+          </section>
         )}
 
         {view === 'Customer Journey' && (
@@ -322,6 +347,17 @@ export default function Home() {
           <Profile lead={selectedLead} leadFiles={leadFiles} fileStatus={fileStatus} uploadLeadFile={uploadLeadFile} getFileUrl={getFileUrl} generateProposal={generateProposal}/>
         </div></div>
       )}
+
+      {proposalModal && selectedProposal && (
+        <div className="modalOverlay"><div className="modal proposalModal">
+          <div className="proposalActions">
+            <button className="btn secondary" onClick={()=>setProposalModal(false)}>Close</button>
+            <button className="btn dark" onClick={()=>window.print()}>Print / Save PDF</button>
+            <button className="btn primary" onClick={()=>alert('Email proposal will be connected in V9')}>Email Proposal</button>
+          </div>
+          <ProposalViewer proposal={selectedProposal} lead={proposalLead} files={proposalFiles} getFileUrl={getFileUrl}/>
+        </div></div>
+      )}
     </div>
   )
 }
@@ -344,4 +380,144 @@ function Profile({lead, leadFiles, fileStatus, uploadLeadFile, getFileUrl, gener
       <div className="card"><h2>Proposal</h2><p className="sub">Generate an MGEN branded draft proposal record.</p><div className="resultGrid"><div className="resultBox"><span>Status</span><strong>Draft</strong></div><div className="resultBox"><span>Views</span><strong>0</strong></div></div><br/><button className="btn primary" onClick={()=>generateProposal(lead)}>Generate Proposal</button></div>
     </section>
   </>
+}
+
+
+function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, lead:Lead|null, files:LeadFile[], getFileUrl:(p:string)=>string}) {
+  const annualSaving = Number(proposal.annual_saving || 0)
+  const generation = Number(proposal.annual_generation || 0)
+  const co2 = Math.round(generation * 0.207 / 1000 * 10) / 10
+  const fiveYear = annualSaving * 5
+  const tenYear = annualSaving * 10
+  const twentyFiveYear = annualSaving * 25
+  const reference = `MGEN-${new Date().getFullYear()}-${String(proposal.id || 1).padStart(4,'0')}`
+  const date = proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')
+
+  return <div className="proposalSheet">
+    <section className="proposalCover">
+      <div>
+        <div className="proposalLogoBlock">
+          <img src="/mgen-logo.png" alt="MGEN Renewables" />
+          <div className="proposalBrand">MGEN<small>RENEWABLES</small></div>
+        </div>
+        <div className="proposalTitle">Solar PV & Battery Proposal</div>
+        <div className="proposalSub">A clear renewable energy proposal prepared for {lead?.name || 'your customer'}.</div>
+        <div className="proposalRef">
+          <strong>Proposal Reference:</strong> {reference}<br/>
+          <strong>Date:</strong> {date}<br/>
+          <strong>Status:</strong> {proposal.proposal_status || 'Draft'}
+        </div>
+      </div>
+      <div className="proposalClient">
+        <h3>Customer Details</h3>
+        <p><strong>Name:</strong><br/>{lead?.name || 'Customer not linked'}</p>
+        <p><strong>Address:</strong><br/>{lead?.address || '—'}</p>
+        <p><strong>Postcode:</strong><br/>{lead?.postcode || '—'}</p>
+        <p><strong>Phone:</strong> {lead?.phone || '—'}</p>
+        <p><strong>Email:</strong> {lead?.email || '—'}</p>
+      </div>
+    </section>
+
+    <section className="proposalBody">
+      <div className="proposalKpis">
+        <div className="proposalKpi"><span>System Size</span><strong>{proposal.system_size_kw}kW</strong></div>
+        <div className="proposalKpi"><span>Panels</span><strong>{proposal.panel_count}</strong></div>
+        <div className="proposalKpi"><span>Battery</span><strong>{proposal.battery_kwh}kWh</strong></div>
+        <div className="proposalKpi"><span>Payback</span><strong>{proposal.payback_years} yrs</strong></div>
+      </div>
+
+      <div className="proposalTwo">
+        <div className="proposalSection">
+          <h3>Recommended System</h3>
+          <ul>
+            <li>{proposal.panel_count} high efficiency solar panels</li>
+            <li>Estimated system size of {proposal.system_size_kw}kW</li>
+            <li>{proposal.battery_kwh}kWh battery storage option</li>
+            <li>Hybrid inverter and monitoring app</li>
+            <li>Designed to reduce grid reliance and improve energy control</li>
+          </ul>
+        </div>
+        <div className="proposalDark">
+          <h3>Estimated Performance</h3>
+          <div className="resultGrid">
+            <div className="resultBox"><span>Annual Generation</span><strong>{generation.toLocaleString()} kWh</strong></div>
+            <div className="resultBox"><span>Annual Saving</span><strong>£{annualSaving.toLocaleString()}</strong></div>
+            <div className="resultBox"><span>25 Year Benefit</span><strong>£{twentyFiveYear.toLocaleString()}</strong></div>
+            <div className="resultBox"><span>CO₂ Reduction</span><strong>{co2} t/yr</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="proposalTwo">
+        <div className="proposalSection">
+          <h3>Roof / Design Preview</h3>
+          <div className="roofPlaceholder">Roof image, panel layout or commercial drawing preview will display here once attached.</div>
+        </div>
+        <div className="proposalSection">
+          <h3>Financial Summary</h3>
+          <div className="resultGrid">
+            <div className="resultBox"><span>Annual Saving</span><strong>£{annualSaving.toLocaleString()}</strong></div>
+            <div className="resultBox"><span>5 Year Saving</span><strong>£{fiveYear.toLocaleString()}</strong></div>
+            <div className="resultBox"><span>10 Year Saving</span><strong>£{tenYear.toLocaleString()}</strong></div>
+            <div className="resultBox"><span>25 Year Saving</span><strong>£{twentyFiveYear.toLocaleString()}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="proposalTwo">
+        <div className="proposalSection">
+          <h3>Scope of Works</h3>
+          <ul>
+            <li>Survey and design confirmation</li>
+            <li>Solar PV and battery system design</li>
+            <li>Supply of equipment</li>
+            <li>Installation and commissioning</li>
+            <li>Handover pack and monitoring guidance</li>
+            <li>Post-installation support</li>
+          </ul>
+        </div>
+        <div className="proposalSection">
+          <h3>Accreditations & Trust</h3>
+          <div className="trustBadges">
+            <span>MCS</span>
+            <span>NAPIT</span>
+            <span>TrustMark</span>
+            <span>RECC / HIES</span>
+            <span>Manufacturer Approved</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="proposalSection">
+        <h3>Uploaded Project Files</h3>
+        {files.length === 0 && <p className="sub">No files uploaded against this lead yet. Upload bills, roof photos or drawings from the lead profile.</p>}
+        {files.map(file => <div className="fileRow" key={file.id || file.file_path}>
+          <div><div className="fileName">{file.file_name}</div><div className="fileMeta">{file.file_type}</div></div>
+          <a className="btn secondary small" href={getFileUrl(file.file_path)} target="_blank">Open</a>
+        </div>)}
+      </div>
+
+      <div className="proposalTwo">
+        <div className="proposalSection">
+          <h3>Customer Acceptance</h3>
+          <p className="sub">I confirm I am happy to proceed based on the proposal information provided.</p>
+          <div className="signatureBox">Customer Signature</div>
+        </div>
+        <div className="proposalSection">
+          <h3>Next Steps</h3>
+          <ul>
+            <li>Confirm acceptance of proposal</li>
+            <li>Book technical survey</li>
+            <li>Finalise design and installation date</li>
+            <li>Complete installation and handover</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <footer className="proposalFooter">
+      <div>MGEN Renewables · Powering smarter energy</div>
+      <div>Proposal prepared by Gary Scott</div>
+    </footer>
+  </div>
 }

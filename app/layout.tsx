@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'MGEN CRM V7',
-  description: 'MGEN Renewables CRM with live leads, file centre, proposals and commercial calculator',
+  title: 'MGEN Solar CRM',
+  description: 'MGEN Renewables internal solar sales platform',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
