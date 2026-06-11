@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import jsPDF from 'jspdf'
 
 type Lead = {
   id?: number
@@ -73,6 +74,10 @@ function calcLead(lead: Lead) {
   return { annualBill, systemKw: trueKw, panelCount, batteryKwh, annualGeneration, annualSaving, billReduction, price, payback }
 }
 
+function money(n: number) {
+  return `£${Number(n || 0).toLocaleString()}`
+}
+
 export default function Home() {
   const [view, setView] = useState('Dashboard')
   const [leads, setLeads] = useState<Lead[]>([])
@@ -82,9 +87,9 @@ export default function Home() {
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [proposalLead, setProposalLead] = useState<Lead | null>(null)
   const [proposalFiles, setProposalFiles] = useState<LeadFile[]>([])
-  const [proposalModal, setProposalModal] = useState(false)
   const [leadModal, setLeadModal] = useState(false)
   const [profileModal, setProfileModal] = useState(false)
+  const [proposalModal, setProposalModal] = useState(false)
   const [form, setForm] = useState<Lead>(emptyLead)
   const [status, setStatus] = useState('Loading...')
   const [fileStatus, setFileStatus] = useState('')
@@ -195,8 +200,8 @@ export default function Home() {
 
   async function openProposal(proposal: Proposal) {
     setSelectedProposal(proposal)
-    const localLead = leads.find(l => l.id === proposal.lead_id) || null
-    setProposalLead(localLead)
+    const lead = leads.find(l => l.id === proposal.lead_id) || null
+    setProposalLead(lead)
     setProposalFiles([])
 
     if (supabase && proposal.lead_id) {
@@ -208,6 +213,117 @@ export default function Home() {
     }
 
     setProposalModal(true)
+  }
+
+  function downloadProposalPdf(proposal: Proposal, lead: Lead | null, files: LeadFile[]) {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    const pageW = 210
+    const pageH = 297
+    const green: [number,number,number] = [31,143,70]
+    const dark: [number,number,number] = [7,16,20]
+
+    const annualSaving = Number(proposal.annual_saving || 0)
+    const generation = Number(proposal.annual_generation || 0)
+    const co2 = Math.round(generation * 0.207 / 1000 * 10) / 10
+    const ref = `MGEN-${new Date().getFullYear()}-${String(proposal.id || 1).padStart(4,'0')}`
+    const date = proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')
+
+    function footer(page: number) {
+      doc.setFontSize(9)
+      doc.setTextColor(100)
+      doc.text('MGEN Renewables · Powering smarter energy', 14, 286)
+      doc.text(`Page ${page}`, 186, 286)
+    }
+
+    // Page 1
+    doc.setFillColor(...dark); doc.rect(0,0,pageW,95,'F')
+    doc.setFillColor(...green); doc.rect(0,95,pageW,18,'F')
+    doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(28)
+    doc.text('Solar PV & Battery Proposal', 14, 28)
+    doc.setFontSize(13); doc.setFont('helvetica','normal')
+    doc.text(`Prepared for ${lead?.name || 'Customer'}`, 14, 40)
+    doc.setFontSize(11)
+    doc.text(`Reference: ${ref}`, 14, 55)
+    doc.text(`Date: ${date}`, 14, 62)
+    doc.text(`Status: ${proposal.proposal_status || 'Draft'}`, 14, 69)
+    doc.setFontSize(10); doc.text('MCS Certified | NAPIT Registered | Blue Drop Warranty Protected', 14, 104)
+
+    doc.setTextColor(20); doc.setFont('helvetica','bold'); doc.setFontSize(16)
+    doc.text('Customer Details', 14, 128)
+    doc.setFont('helvetica','normal'); doc.setFontSize(11)
+    doc.text(`Name: ${lead?.name || '—'}`, 14, 140)
+    doc.text(`Address: ${lead?.address || '—'}`, 14, 148)
+    doc.text(`Postcode: ${lead?.postcode || '—'}`, 14, 156)
+    doc.text(`Phone: ${lead?.phone || '—'}`, 14, 164)
+    doc.text(`Email: ${lead?.email || '—'}`, 14, 172)
+
+    doc.setFillColor(245,248,245); doc.roundedRect(14,190,182,56,4,4,'F')
+    doc.setTextColor(...green); doc.setFont('helvetica','bold'); doc.setFontSize(20)
+    doc.text(`${money(annualSaving)} annual saving`, 24, 210)
+    doc.setTextColor(20); doc.setFontSize(13)
+    doc.text(`${money(annualSaving * 10)} estimated 10 year saving`, 24, 225)
+    doc.text(`${money(annualSaving * 25)} estimated 25 year saving`, 24, 236)
+    footer(1)
+
+    // Page 2
+    doc.addPage()
+    doc.setTextColor(20); doc.setFont('helvetica','bold'); doc.setFontSize(20)
+    doc.text('Recommended System', 14, 22)
+    doc.setFontSize(12); doc.setFont('helvetica','normal')
+    doc.text(`System size: ${proposal.system_size_kw}kW`, 14, 40)
+    doc.text(`Panels: ${proposal.panel_count} high efficiency solar panels`, 14, 50)
+    doc.text(`Battery: ${proposal.battery_kwh}kWh battery storage`, 14, 60)
+    doc.text(`Annual generation: ${generation.toLocaleString()} kWh`, 14, 70)
+    doc.text(`Payback: ${proposal.payback_years} years`, 14, 80)
+    doc.text(`CO2 reduction: ${co2} tonnes per year`, 14, 90)
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text('Scope of Works', 14, 116)
+    doc.setFont('helvetica','normal'); doc.setFontSize(11)
+    const scope = ['Survey and design confirmation','Solar PV and battery system design','Supply of equipment','Installation and commissioning','Handover pack and monitoring guidance','Post-installation support']
+    scope.forEach((s,i)=>doc.text(`• ${s}`, 18, 130 + i*9))
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text('Accreditations & Warranty', 14, 202)
+    doc.setFont('helvetica','normal'); doc.setFontSize(11)
+    doc.text('MCS Certified · NAPIT Registered · Blue Drop Insurance Backed Warranty', 14, 216)
+    doc.text('RECC / TrustMark can be added when confirmed and approved.', 14, 226)
+    footer(2)
+
+    // Page 3
+    doc.addPage()
+    doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(20)
+    doc.text('Financial Summary', 14, 22)
+    const boxes = [
+      ['Annual Saving', money(annualSaving)],
+      ['5 Year Saving', money(annualSaving*5)],
+      ['10 Year Saving', money(annualSaving*10)],
+      ['25 Year Saving', money(annualSaving*25)]
+    ]
+    boxes.forEach((b,i)=>{
+      const x = i % 2 === 0 ? 14 : 108
+      const y = i < 2 ? 42 : 82
+      doc.setFillColor(245,248,245); doc.roundedRect(x,y,82,26,3,3,'F')
+      doc.setTextColor(100); doc.setFontSize(9); doc.text(b[0], x+6, y+10)
+      doc.setTextColor(20); doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.text(b[1], x+6, y+20)
+      doc.setFont('helvetica','normal')
+    })
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text('Uploaded Project Files', 14, 134)
+    doc.setFont('helvetica','normal'); doc.setFontSize(10)
+    if (files.length === 0) {
+      doc.text('No project files have been uploaded against this lead yet.', 14, 148)
+    } else {
+      files.slice(0,10).forEach((f,i)=>doc.text(`• ${f.file_type}: ${f.file_name}`, 18, 148 + i*8))
+    }
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text('Customer Acceptance', 14, 222)
+    doc.setFont('helvetica','normal'); doc.setFontSize(11)
+    doc.text('I confirm I am happy to proceed based on this proposal.', 14, 236)
+    doc.line(14, 258, 95, 258); doc.text('Customer signature', 14, 266)
+    doc.line(120, 258, 190, 258); doc.text('Date', 120, 266)
+    footer(3)
+
+    const safe = (lead?.name || 'customer').replace(/[^a-zA-Z0-9]/g,'-')
+    doc.save(`MGEN-Proposal-${safe}.pdf`)
   }
 
   const pipeline = leads.length * 9500
@@ -239,7 +355,7 @@ export default function Home() {
 
       <main className="main">
         <div className="topbar">
-          <div><h1>MGEN CRM V8</h1><div className="sub">{view} · Proposal Engine</div></div>
+          <div><h1>MGEN CRM V9</h1><div className="sub">{view} · PDF sales proposal</div></div>
           <button className="btn primary" onClick={() => setLeadModal(true)}>+ New Lead</button>
         </div>
 
@@ -255,7 +371,7 @@ export default function Home() {
             </section>
             <section className="layout">
               <div className="card"><h2>Latest Leads</h2><LeadTable leads={leads.slice(0,5)} openProfile={openProfile}/></div>
-              <div className="card"><h2>Next Best Actions</h2><div className="journeyStep"><div className="dot">1</div><div><div className="stepTitle">Call {firstLead?.name || 'new lead'}</div><div className="stepText">Follow up highest priority lead</div></div></div><div className="journeyStep"><div className="dot">2</div><div><div className="stepTitle">Upload files</div><div className="stepText">Bills, roof photos, commercial plans</div></div></div><div className="journeyStep"><div className="dot">3</div><div><div className="stepTitle">Generate proposal</div><div className="stepText">Create draft proposal record</div></div></div></div>
+              <div className="card"><h2>Next Best Actions</h2><div className="journeyStep"><div className="dot">1</div><div><div className="stepTitle">Call {firstLead?.name || 'new lead'}</div><div className="stepText">Follow up highest priority lead</div></div></div><div className="journeyStep"><div className="dot">2</div><div><div className="stepTitle">Download PDF</div><div className="stepText">V9 now creates a PDF file directly</div></div></div><div className="journeyStep"><div className="dot">3</div><div><div className="stepTitle">Add logos</div><div className="stepText">Upload accreditation logos into public/accreditations</div></div></div></div>
             </section>
           </>
         )}
@@ -274,8 +390,8 @@ export default function Home() {
         {view === 'Proposals' && (
           <section className="card">
             <h2>Proposals</h2>
-            <p className="sub">V8: click Preview to open a customer-facing proposal document.</p>
-            <table><thead><tr><th>Title</th><th>System</th><th>Panels</th><th>Saving</th><th>Status</th><th>Preview</th></tr></thead><tbody>{proposals.map(p => <tr key={p.id} className="clickable" onClick={()=>openProposal(p)}><td>{p.title}</td><td>{p.system_size_kw}kW</td><td>{p.panel_count}</td><td>£{Number(p.annual_saving).toLocaleString()}</td><td><span className="pill hot">{p.proposal_status}</span></td><td><button className="btn primary small" onClick={(e)=>{e.stopPropagation(); openProposal(p)}}>Preview</button></td></tr>)}{proposals.length===0&&<tr><td colSpan={6}>No proposals yet. Open a lead and click Generate Proposal.</td></tr>}</tbody></table>
+            <p className="sub">V9: preview the sales proposal and download a proper PDF file.</p>
+            <table><thead><tr><th>Title</th><th>System</th><th>Panels</th><th>Saving</th><th>Status</th><th>Preview</th></tr></thead><tbody>{proposals.map(p => <tr key={p.id} className="clickable" onClick={()=>openProposal(p)}><td>{p.title}</td><td>{p.system_size_kw}kW</td><td>{p.panel_count}</td><td>{money(Number(p.annual_saving))}</td><td><span className="pill hot">{p.proposal_status}</span></td><td><button className="btn primary small" onClick={(e)=>{e.stopPropagation(); openProposal(p)}}>Preview</button></td></tr>)}{proposals.length===0&&<tr><td colSpan={6}>No proposals yet. Open a lead and click Generate Proposal.</td></tr>}</tbody></table>
           </section>
         )}
 
@@ -310,10 +426,10 @@ export default function Home() {
               <div className="resultGrid">
                 <div className="resultBox"><span>System Size</span><strong>{commercialKw.toFixed(2)}kW</strong></div>
                 <div className="resultBox"><span>Generation</span><strong>{commercialGeneration.toLocaleString()} kWh</strong></div>
-                <div className="resultBox"><span>Annual Saving</span><strong>£{commercialSaving.toLocaleString()}</strong></div>
+                <div className="resultBox"><span>Annual Saving</span><strong>{money(commercialSaving)}</strong></div>
                 <div className="resultBox"><span>Payback</span><strong>{commercialPayback} yrs</strong></div>
                 <div className="resultBox"><span>CO₂ Reduction</span><strong>{commercialCo2} t/yr</strong></div>
-                <div className="resultBox"><span>Estimated CAPEX</span><strong>£{commercialCapex.toLocaleString()}</strong></div>
+                <div className="resultBox"><span>Estimated CAPEX</span><strong>{money(commercialCapex)}</strong></div>
               </div>
             </div>
           </section>
@@ -322,7 +438,7 @@ export default function Home() {
 
       {leadModal && (
         <div className="modalOverlay"><div className="modal">
-          <div className="modalHead"><div><h2>Add New Lead</h2><p className="sub">Create a new MGEN opportunity.</p></div><button className="btn secondary" onClick={()=>setLeadModal(false)}>Close</button></div>
+          <div className="detailHeader"><div><h2>Add New Lead</h2><p className="sub">Create a new MGEN opportunity.</p></div><button className="btn secondary" onClick={()=>setLeadModal(false)}>Close</button></div>
           <form onSubmit={saveLead}>
             <div className="formGrid">
               <div><label>Name</label><input required value={form.name} onChange={e=>updateForm('name',e.target.value)}/></div>
@@ -333,7 +449,7 @@ export default function Home() {
               <div><label>Monthly bill</label><input type="number" value={form.monthly_bill} onChange={e=>updateForm('monthly_bill',Number(e.target.value))}/></div>
               <div><label>Annual usage</label><input type="number" value={form.annual_usage} onChange={e=>updateForm('annual_usage',Number(e.target.value))}/></div>
               <div><label>Roof type</label><select value={form.roof_type} onChange={e=>updateForm('roof_type',e.target.value)}><option>South-facing</option><option>East/West</option><option>Flat roof</option><option>Commercial flat roof</option><option>New build / plans only</option><option>Unknown</option></select></div>
-              <div><label>Stage</label><select value={form.stage} onChange={e=>updateForm('stage',e.target.value)}><option>New Lead</option><option>Bill Uploaded</option><option>Plans Uploaded</option><option>Proposal Sent</option><option>Survey Booked</option><option>Won</option><option>Lost</option></select></div>
+              <div><label>Stage</label><select value={form.stage} onChange={e=>updateForm('stage',e.target.value)}><option>New Lead</option><option>Contacted</option><option>Bill Uploaded</option><option>Plans Uploaded</option><option>Survey Booked</option><option>Survey Complete</option><option>Proposal Sent</option><option>Follow Up</option><option>Won</option><option>Lost</option></select></div>
               <div className="full"><label>Notes</label><textarea value={form.notes} onChange={e=>updateForm('notes',e.target.value)}/></div>
             </div>
             <div className="modalActions"><button type="button" className="btn secondary" onClick={()=>setLeadModal(false)}>Cancel</button><button className="btn primary">Save Lead</button></div>
@@ -352,9 +468,10 @@ export default function Home() {
         <div className="modalOverlay"><div className="modal proposalModal">
           <div className="proposalActions">
             <button className="btn secondary" onClick={()=>setProposalModal(false)}>Close</button>
-            <button className="btn dark" onClick={()=>window.print()}>Print / Save PDF</button>
-            <button className="btn primary" onClick={()=>alert('Email proposal will be connected in V9')}>Email Proposal</button>
+            <button className="btn dark" onClick={()=>downloadProposalPdf(selectedProposal, proposalLead, proposalFiles)}>Download Proposal PDF</button>
+            <button className="btn primary" onClick={()=>alert('Email proposal will be connected in the next version')}>Email Proposal</button>
           </div>
+          <div className="pdfNote">V9 preview below. The PDF button now downloads a file directly instead of opening the browser print screen.</div>
           <ProposalViewer proposal={selectedProposal} lead={proposalLead} files={proposalFiles} getFileUrl={getFileUrl}/>
         </div></div>
       )}
@@ -363,7 +480,7 @@ export default function Home() {
 }
 
 function LeadTable({leads, openProfile}:{leads:Lead[], openProfile:(l:Lead)=>void}) {
-  return <table><thead><tr><th>Name</th><th>Address</th><th>Postcode</th><th>Stage</th><th>Saving</th><th>Profile</th></tr></thead><tbody>{leads.map(lead=><tr key={lead.id||lead.name} className="clickable" onClick={()=>openProfile(lead)}><td>{lead.name}</td><td>{lead.address}</td><td>{lead.postcode}</td><td><span className={lead.stage==='Proposal Sent'?'pill hot':'pill'}>{lead.stage}</span></td><td>£{calcLead(lead).annualSaving.toLocaleString()}/yr</td><td><span className="pill dark">Open</span></td></tr>)}{leads.length===0&&<tr><td colSpan={6}>No leads found.</td></tr>}</tbody></table>
+  return <table><thead><tr><th>Name</th><th>Address</th><th>Postcode</th><th>Stage</th><th>Saving</th><th>Profile</th></tr></thead><tbody>{leads.map(lead=><tr key={lead.id||lead.name} className="clickable" onClick={()=>openProfile(lead)}><td>{lead.name}</td><td>{lead.address}</td><td>{lead.postcode}</td><td><span className={lead.stage==='Proposal Sent'?'pill hot':'pill'}>{lead.stage}</span></td><td>{money(calcLead(lead).annualSaving)}/yr</td><td><span className="pill dark">Open</span></td></tr>)}{leads.length===0&&<tr><td colSpan={6}>No leads found.</td></tr>}</tbody></table>
 }
 
 function Profile({lead, leadFiles, fileStatus, uploadLeadFile, getFileUrl, generateProposal}:{lead:Lead, leadFiles:LeadFile[], fileStatus:string, uploadLeadFile:(t:string,f?:File|null)=>void, getFileUrl:(p:string)=>string, generateProposal:(l:Lead)=>void}) {
@@ -371,8 +488,8 @@ function Profile({lead, leadFiles, fileStatus, uploadLeadFile, getFileUrl, gener
   return <>
     <div className="detailTabs"><span className="pill dark">{lead.stage}</span><span className="pill blue">Files: {leadFiles.length}</span><span className="pill hot">Proposal Ready</span></div>
     <section className="layout">
-      <div className="card"><h2>Customer Details</h2><div className="resultGrid"><div className="resultBox"><span>Phone</span><strong>{lead.phone || '—'}</strong></div><div className="resultBox"><span>Email</span><strong>{lead.email || '—'}</strong></div><div className="resultBox"><span>Monthly Bill</span><strong>£{Number(lead.monthly_bill||0).toLocaleString()}</strong></div><div className="resultBox"><span>Annual Usage</span><strong>{Number(lead.annual_usage||0).toLocaleString()} kWh</strong></div><div className="resultBox"><span>Roof Type</span><strong>{lead.roof_type || 'Unknown'}</strong></div><div className="resultBox"><span>Stage</span><strong>{lead.stage}</strong></div></div><h2 className="sectionTitle">Notes</h2><p className="sub">{lead.notes || 'No notes added yet.'}</p></div>
-      <div className="card"><h2>Recommended System</h2><div className="heroSaving"><div className="big">{c.billReduction}%</div><div className="label">Expected Bill Reduction</div></div><div className="resultGrid"><div className="resultBox"><span>Panels</span><strong>{c.panelCount} x 440W</strong></div><div className="resultBox"><span>System Size</span><strong>{c.systemKw.toFixed(2)}kW</strong></div><div className="resultBox"><span>Battery</span><strong>{c.batteryKwh}kWh</strong></div><div className="resultBox"><span>Generation</span><strong>{c.annualGeneration.toLocaleString()} kWh</strong></div><div className="resultBox"><span>Annual Saving</span><strong>£{c.annualSaving.toLocaleString()}</strong></div><div className="resultBox"><span>Payback</span><strong>{c.payback} yrs</strong></div></div></div>
+      <div className="card"><h2>Customer Details</h2><div className="resultGrid"><div className="resultBox"><span>Phone</span><strong>{lead.phone || '—'}</strong></div><div className="resultBox"><span>Email</span><strong>{lead.email || '—'}</strong></div><div className="resultBox"><span>Monthly Bill</span><strong>{money(Number(lead.monthly_bill||0))}</strong></div><div className="resultBox"><span>Annual Usage</span><strong>{Number(lead.annual_usage||0).toLocaleString()} kWh</strong></div><div className="resultBox"><span>Roof Type</span><strong>{lead.roof_type || 'Unknown'}</strong></div><div className="resultBox"><span>Stage</span><strong>{lead.stage}</strong></div></div><h2 className="sectionTitle">Notes</h2><p className="sub">{lead.notes || 'No notes added yet.'}</p></div>
+      <div className="card"><h2>Recommended System</h2><div className="heroSaving"><div className="big">{c.billReduction}%</div><div className="label">Expected Bill Reduction</div></div><div className="resultGrid"><div className="resultBox"><span>Panels</span><strong>{c.panelCount} x 440W</strong></div><div className="resultBox"><span>System Size</span><strong>{c.systemKw.toFixed(2)}kW</strong></div><div className="resultBox"><span>Battery</span><strong>{c.batteryKwh}kWh</strong></div><div className="resultBox"><span>Generation</span><strong>{c.annualGeneration.toLocaleString()} kWh</strong></div><div className="resultBox"><span>Annual Saving</span><strong>{money(c.annualSaving)}</strong></div><div className="resultBox"><span>Payback</span><strong>{c.payback} yrs</strong></div></div></div>
     </section>
     <section className="layout3">
       <div className="card"><h2>Upload Files</h2>{fileStatus && <div className={fileStatus.includes('success')?'notice good':'notice'}>{fileStatus}</div>}<div className="uploadBox">Electricity Bill<input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>uploadLeadFile('bill',e.target.files?.[0])}/></div><div className="uploadBox">Roof Photos<input type="file" accept=".jpg,.jpeg,.png,.heic,.pdf" onChange={e=>uploadLeadFile('roof-photo',e.target.files?.[0])}/></div><div className="uploadBox">Commercial Plans / Drawings<input type="file" accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png" onChange={e=>uploadLeadFile('commercial-plan',e.target.files?.[0])}/></div></div>
@@ -382,6 +499,18 @@ function Profile({lead, leadFiles, fileStatus, uploadLeadFile, getFileUrl, gener
   </>
 }
 
+function AccreditationLogos() {
+  return <div className="accredStrip">
+    <img className="accredLogo" src="/accreditations/mcs-logo.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+    <img className="accredLogo" src="/accreditations/napit-logo.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+    <img className="accredLogo" src="/accreditations/blue-drop-logo.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+    <img className="accredLogo" src="/accreditations/recc-logo.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+    <img className="accredLogo" src="/accreditations/trustmark-logo.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+    <span className="accredBadge">MCS</span>
+    <span className="accredBadge">NAPIT</span>
+    <span className="accredBadge">Blue Drop</span>
+  </div>
+}
 
 function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, lead:Lead|null, files:LeadFile[], getFileUrl:(p:string)=>string}) {
   const annualSaving = Number(proposal.annual_saving || 0)
@@ -392,6 +521,7 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
   const twentyFiveYear = annualSaving * 25
   const reference = `MGEN-${new Date().getFullYear()}-${String(proposal.id || 1).padStart(4,'0')}`
   const date = proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')
+  const imageFiles = files.filter(f => ['roof-photo','commercial-plan'].includes(f.file_type) && !f.file_name.toLowerCase().endsWith('.pdf'))
 
   return <div className="proposalSheet">
     <section className="proposalCover">
@@ -400,13 +530,14 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
           <img src="/mgen-logo.png" alt="MGEN Renewables" />
           <div className="proposalBrand">MGEN<small>RENEWABLES</small></div>
         </div>
-        <div className="proposalTitle">Solar PV & Battery Proposal</div>
-        <div className="proposalSub">A clear renewable energy proposal prepared for {lead?.name || 'your customer'}.</div>
+        <div className="proposalTitle">Save up to {money(annualSaving)} per year</div>
+        <div className="proposalSub">Solar PV & battery proposal prepared for {lead?.name || 'your customer'}.</div>
         <div className="proposalRef">
           <strong>Proposal Reference:</strong> {reference}<br/>
           <strong>Date:</strong> {date}<br/>
           <strong>Status:</strong> {proposal.proposal_status || 'Draft'}
         </div>
+        <AccreditationLogos />
       </div>
       <div className="proposalClient">
         <h3>Customer Details</h3>
@@ -441,8 +572,8 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
           <h3>Estimated Performance</h3>
           <div className="resultGrid">
             <div className="resultBox"><span>Annual Generation</span><strong>{generation.toLocaleString()} kWh</strong></div>
-            <div className="resultBox"><span>Annual Saving</span><strong>£{annualSaving.toLocaleString()}</strong></div>
-            <div className="resultBox"><span>25 Year Benefit</span><strong>£{twentyFiveYear.toLocaleString()}</strong></div>
+            <div className="resultBox"><span>Annual Saving</span><strong>{money(annualSaving)}</strong></div>
+            <div className="resultBox"><span>25 Year Benefit</span><strong>{money(twentyFiveYear)}</strong></div>
             <div className="resultBox"><span>CO₂ Reduction</span><strong>{co2} t/yr</strong></div>
           </div>
         </div>
@@ -451,15 +582,15 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
       <div className="proposalTwo">
         <div className="proposalSection">
           <h3>Roof / Design Preview</h3>
-          <div className="roofPlaceholder">Roof image, panel layout or commercial drawing preview will display here once attached.</div>
+          {imageFiles[0] ? <img className="proposalPhoto" src={getFileUrl(imageFiles[0].file_path)} alt="Uploaded roof/design file" /> : <div className="roofPlaceholder">Roof image, panel layout or commercial drawing preview will display here once attached.</div>}
         </div>
         <div className="proposalSection">
           <h3>Financial Summary</h3>
           <div className="resultGrid">
-            <div className="resultBox"><span>Annual Saving</span><strong>£{annualSaving.toLocaleString()}</strong></div>
-            <div className="resultBox"><span>5 Year Saving</span><strong>£{fiveYear.toLocaleString()}</strong></div>
-            <div className="resultBox"><span>10 Year Saving</span><strong>£{tenYear.toLocaleString()}</strong></div>
-            <div className="resultBox"><span>25 Year Saving</span><strong>£{twentyFiveYear.toLocaleString()}</strong></div>
+            <div className="resultBox"><span>Annual Saving</span><strong>{money(annualSaving)}</strong></div>
+            <div className="resultBox"><span>5 Year Saving</span><strong>{money(fiveYear)}</strong></div>
+            <div className="resultBox"><span>10 Year Saving</span><strong>{money(tenYear)}</strong></div>
+            <div className="resultBox"><span>25 Year Saving</span><strong>{money(twentyFiveYear)}</strong></div>
           </div>
         </div>
       </div>
@@ -477,13 +608,13 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
           </ul>
         </div>
         <div className="proposalSection">
-          <h3>Accreditations & Trust</h3>
+          <h3>Accreditations & Warranty</h3>
           <div className="trustBadges">
             <span>MCS</span>
             <span>NAPIT</span>
-            <span>TrustMark</span>
+            <span>Blue Drop Warranty Protected</span>
             <span>RECC / HIES</span>
-            <span>Manufacturer Approved</span>
+            <span>TrustMark</span>
           </div>
         </div>
       </div>

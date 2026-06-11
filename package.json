@@ -1,5 +1,5 @@
 {
-  "name": "mgen-crm-v8-proposal-engine",
+  "name": "mgen-crm-v9-pdf-proposal",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -11,7 +11,8 @@
     "@supabase/supabase-js": "latest",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "jspdf": "latest"
   },
   "devDependencies": {
     "typescript": "latest",
