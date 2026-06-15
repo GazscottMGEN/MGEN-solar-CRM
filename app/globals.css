@@ -60,3 +60,24 @@
   min-height:unset !important;
 
 }
+.proposalDark {
+
+  align-self: start !important;
+
+  min-height: 0 !important;
+
+  height: fit-content !important;
+
+}
+
+.proposalDark .resultGrid {
+
+  margin-bottom: 0 !important;
+
+}
+
+.proposalSection {
+
+  align-self: start !important;
+
+}
