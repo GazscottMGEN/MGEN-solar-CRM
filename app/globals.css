@@ -81,3 +81,26 @@
   align-self: start !important;
 
 }
+.proposalBenefits{
+
+  margin-top:20px;
+
+  color:white;
+
+}
+
+.proposalBenefits h4{
+
+  margin-bottom:12px;
+
+  font-size:18px;
+
+}
+
+.proposalBenefits ul{
+
+  padding-left:18px;
+
+  line-height:1.8;
+
+}
