@@ -429,17 +429,23 @@ function Profile({lead, leadFiles, fileStatus, uploadLeadFile, getFileUrl, gener
 }
 
 function AccreditationLogos() {
-  return <div className="accredStrip">
-    <img className="accredLogo" src="/logos/NAPIT_MCS_ LARGE_220120.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
-    <img className="accredLogo" src="/logos/NAPIT_MCS_ LARGE_220120.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
-    <img className="accredLogo" src="/logos/Bluedrop Logo (Hi res).tif" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
-    <img className="accredLogo" src="/logos/acs-recc-logo-full-col-horiz-rgb (1).png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
-    <img className="accredLogo" src="/logos/WEB DOCUMENTS LOGO.png" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
-    <span className="accredBadge">MCS</span>
-    <span className="accredBadge">NAPIT</span>
-    <span className="accredBadge">Blue Drop</span>
-  </div>
+
+  return (
+
+    <div className="accredStrip">
+
+      <img className="accredLogo" src="/logos/NAPIT_MCS_ LARGE_220120.png" />
+
+      <img className="accredLogo" src="/logos/acs-recc-logo-full-col-horiz-rgb (1).png" />
+
+      <img className="accredLogo" src="/logos/WEB DOCUMENTS LOGO.png" />
+
+    </div>
+
+  )
+
 }
+
 
 function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, lead:Lead|null, files:LeadFile[], getFileUrl:(p:string)=>string}) {
   const annualSaving = Number(proposal.annual_saving || 0)
