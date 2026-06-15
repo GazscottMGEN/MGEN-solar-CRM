@@ -289,7 +289,13 @@ pdf.save(`MGEN-Proposal-${safe}.pdf`)
 
 setPdfStatus('PDF downloaded')
 
-  }
+  
+  } catch (err) {
+  
+  setPdfStatus('PDF export failed. Try again after the images finish loading.')
+}
+}
+
 
   const pipeline = leads.length * 9500
   const quoteCount = leads.filter(l => ['Proposal Sent','Survey Booked','Won'].includes(l.stage)).length
