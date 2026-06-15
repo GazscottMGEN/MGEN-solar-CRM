@@ -9,7 +9,7 @@
 .proposalExportPage{background:white;width:900px;min-height:1273px;padding:0;overflow:hidden;position:relative;}
 .proposalSheet{background:white;}
 .proposalPhoto{width:100%;height:240px;object-fit:cover;border-radius:18px;border:1px solid #e5eee7;}
-.batteryPhoto{width:100%;height:160px;object-fit:contain;background:#f7f7f7;border:1px solid #e5eee7;border-radius:18px;margin-top:18px;}
+.batteryPhoto{width:100%;height:260px;object-fit:contain;background:#f7f7f7;border:1px solid #e5eee7;border-radius:18px;margin-top:18px;}
 
 .resultBox strong {
 
