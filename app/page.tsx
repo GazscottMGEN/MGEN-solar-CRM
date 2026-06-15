@@ -504,6 +504,7 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
             <li>Designed to reduce grid reliance and improve energy control</li>
           </ul>
           <img className="batteryPhoto" src={ASSETS.battery} alt="Fox ESS battery" />
+          <img className="batteryPhoto" src="/images/NEOSTAR 2S54 Mono-Glass 440-460W.jpg" alt="AIKO Neostar solar panel" />
         </div>
         <div className="proposalDark">
           <h3>Estimated Performance</h3>
