@@ -250,8 +250,25 @@ const imgW = 210
 
 const imgH = (canvas.height * imgW) / canvas.width
 
-pdf.addImage(imgData, 'JPEG', 0, 0, imgW, imgH)
-      }
+let heightLeft = imgH
+
+let position = 0
+
+pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
+
+heightLeft -= 297
+
+while (heightLeft > 0) {
+
+  position -= 297
+
+  pdf.addPage()
+
+  pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
+
+  heightLeft -= 297
+
+}
 
       const safe = (proposalLead?.name || 'customer').replace(/[^a-zA-Z0-9]/g,'-')
       pdf.save(`MGEN-Proposal-${safe}.pdf`)
