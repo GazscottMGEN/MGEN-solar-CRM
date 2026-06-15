@@ -235,47 +235,60 @@ export default function Home() {
       if (pages.length === 0) pages = [proposalRef.current.querySelector('.proposalSheet') as HTMLElement]
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
-      for (let i = 0; i < pages.length; i++) {
-        const canvas = await html2canvas(pages[i], {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff'
-        })
-       const imgData = canvas.toDataURL('image/jpeg', 0.95)
+     for (let i = 0; i < pages.length; i++) {
 
-if (i > 0) pdf.addPage()
+  const canvas = await html2canvas(pages[i], {
 
-const imgW = 210
+    scale: 2,
 
-const imgH = (canvas.height * imgW) / canvas.width
+    useCORS: true,
 
-let heightLeft = imgH
+    allowTaint: true,
 
-let position = 0
+    backgroundColor: '#ffffff'
 
-pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
+  })
 
-heightLeft -= 297
+  const imgData = canvas.toDataURL('image/jpeg', 0.95)
 
-while (heightLeft > 0) {
+  if (i > 0) {
 
-  position -= 297
+    pdf.addPage()
 
-  pdf.addPage()
+  }
+
+  const imgW = 210
+
+  const imgH = (canvas.height * imgW) / canvas.width
+
+  let heightLeft = imgH
+
+  let position = 0
 
   pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
 
   heightLeft -= 297
 
+  while (heightLeft > 0) {
+
+    position -= 297
+
+    pdf.addPage()
+
+    pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
+
+    heightLeft -= 297
+
+  }
+
 }
 
-      const safe = (proposalLead?.name || 'customer').replace(/[^a-zA-Z0-9]/g,'-')
-      pdf.save(`MGEN-Proposal-${safe}.pdf`)
-      setPdfStatus('PDF downloaded')
-    } catch (err) {
-      setPdfStatus('PDF export failed. Try again after the images finish loading.')
-    }
+const safe = (proposalLead?.name || 'customer').replace(/[^a-zA-Z0-9]/g, '-')
+
+pdf.save(`MGEN-Proposal-${safe}.pdf`)
+
+setPdfStatus('PDF downloaded')
+
   }
 
   const pipeline = leads.length * 9500
