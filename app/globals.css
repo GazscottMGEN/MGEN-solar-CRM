@@ -40,3 +40,23 @@
   color: #667085 !important;
 
 }
+
+.proposalDark{
+
+  height:auto !important;
+
+  min-height:auto !important;
+
+}
+
+.resultGrid{
+
+  align-content:start !important;
+
+}
+
+.resultBox{
+
+  min-height:unset !important;
+
+}
