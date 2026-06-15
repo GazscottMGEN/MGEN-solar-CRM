@@ -242,9 +242,15 @@ export default function Home() {
           allowTaint: true,
           backgroundColor: '#ffffff'
         })
-        const imgData = canvas.toDataURL('image/jpeg', 0.95)
-        if (i > 0) pdf.addPage()
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297)
+       const imgData = canvas.toDataURL('image/jpeg', 0.95)
+
+if (i > 0) pdf.addPage()
+
+const imgW = 210
+
+const imgH = (canvas.height * imgW) / canvas.width
+
+pdf.addImage(imgData, 'JPEG', 0, 0, imgW, imgH)
       }
 
       const safe = (proposalLead?.name || 'customer').replace(/[^a-zA-Z0-9]/g,'-')
