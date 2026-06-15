@@ -104,3 +104,40 @@
   line-height:1.8;
 
 }
+.proposalExportPage {
+
+  width: 794px !important;
+
+  min-height: 1123px !important;
+
+  height: auto !important;
+
+  transform: none !important;
+
+  aspect-ratio: auto !important;
+
+}
+
+.proposalSheet {
+
+  width: 100% !important;
+
+  transform: none !important;
+
+}
+
+.proposalPhoto,
+
+.batteryPhoto,
+
+.panelPhoto {
+
+  object-fit: contain !important;
+
+  height: auto !important;
+
+  max-height: 240px !important;
+
+}
+
+
