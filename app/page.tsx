@@ -508,12 +508,65 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
         </div>
         <div className="proposalDark">
           <h3>Estimated Performance</h3>
-          <div className="resultGrid">
-            <div className="resultBox"><span>Annual Generation</span><strong>{generation.toLocaleString()} kWh</strong></div>
-            <div className="resultBox"><span>Annual Saving</span><strong>{money(annualSaving)}</strong></div>
-            <div className="resultBox"><span>25 Year Benefit</span><strong>{money(twentyFiveYear)}</strong></div>
-            <div className="resultBox"><span>CO₂ Reduction</span><strong>{co2} t/yr</strong></div>
-          </div>
+
+<div className="resultGrid">
+
+  <div className="resultBox">
+
+    <span>Annual Generation</span>
+
+    <strong>{generation.toLocaleString()} kWh</strong>
+
+  </div>
+
+  <div className="resultBox">
+
+    <span>Annual Saving</span>
+
+    <strong>{money(annualSaving)}</strong>
+
+  </div>
+
+  <div className="resultBox">
+
+    <span>25 Year Benefit</span>
+
+    <strong>{money(twentyFiveYear)}</strong>
+
+  </div>
+
+  <div className="resultBox">
+
+    <span>CO₂ Reduction</span>
+
+    <strong>{co2} t/yr</strong>
+
+  </div>
+
+</div>
+
+<div className="proposalBenefits">
+
+  <h4>Why We Recommend This System</h4>
+
+  <ul>
+
+    <li>✓ AIKO high efficiency solar panels</li>
+
+    <li>✓ Fox ESS battery storage</li>
+
+    <li>✓ Hybrid inverter technology</li>
+
+    <li>✓ Real time monitoring app</li>
+
+    <li>✓ Reduced reliance on grid electricity</li>
+
+    <li>✓ Long term energy savings</li>
+
+  </ul>
+
+</div>
+
         </div>
       </div>
 
