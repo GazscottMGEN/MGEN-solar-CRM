@@ -438,6 +438,31 @@ setPdfStatus('PDF downloaded')
       <button className="btn primary">+ Add Property</button>
 
       <button className="btn secondary">Bulk Upload CSV</button>
+<div className="formGrid">
+
+  <div>
+
+    <label>Postcode</label>
+
+    <input placeholder="NE36 0DP" />
+
+  </div>
+
+  <div>
+
+    <label>House Number</label>
+
+    <input placeholder="15" />
+
+  </div>
+
+</div>
+
+<button className="btn primary">
+
+  Check EPC
+
+</button>
 
     </div>
 
