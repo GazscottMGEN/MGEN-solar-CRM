@@ -504,6 +504,47 @@ setPdfStatus('PDF downloaded')
   </div>
 
 </div>
+<div className="card" style={{marginTop:'12px'}}>
+
+  <h3>Solar Upgrade Assessment</h3>
+
+  <div className="resultGrid">
+
+    <div className="resultBox">
+
+      <span>Recommended System</span>
+
+      <strong>3.9kW</strong>
+
+    </div>
+
+    <div className="resultBox">
+
+      <span>Estimated Cost</span>
+
+      <strong>£7,250</strong>
+
+    </div>
+
+    <div className="resultBox">
+
+      <span>Annual Saving</span>
+
+      <strong>£1,120</strong>
+
+    </div>
+
+    <div className="resultBox">
+
+      <span>Payback</span>
+
+      <strong>6.5 yrs</strong>
+
+    </div>
+
+  </div>
+
+</div>
 
     </div>
 
