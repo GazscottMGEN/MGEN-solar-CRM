@@ -612,7 +612,7 @@ function ProposalViewer({proposal, lead, files, getFileUrl}:{proposal:Proposal, 
         </div>
       </div>
 
-      <div className="proposalTwo roofFinancialSection"></div>
+      <div className="proposalTwo roofFinancialSection">
         <div className="proposalSection">
           <h3>Roof / Design Preview</h3>
           <img className="proposalPhoto" src={projectImage} alt="Roof/design preview" />
