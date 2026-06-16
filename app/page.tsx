@@ -463,6 +463,47 @@ setPdfStatus('PDF downloaded')
   Check EPC
 
 </button>
+<div className="card" style={{marginTop:'12px'}}>
+
+  <h3>EPC Result</h3>
+
+  <div className="resultGrid">
+
+    <div className="resultBox">
+
+      <span>EPC Rating</span>
+
+      <strong>D</strong>
+
+    </div>
+
+    <div className="resultBox">
+
+      <span>Floor Area</span>
+
+      <strong>92m²</strong>
+
+    </div>
+
+    <div className="resultBox">
+
+      <span>Solar Potential</span>
+
+      <strong>3.9kW</strong>
+
+    </div>
+
+    <div className="resultBox">
+
+      <span>MEES Risk</span>
+
+      <strong>Medium</strong>
+
+    </div>
+
+  </div>
+
+</div>
 
     </div>
 
