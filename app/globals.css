@@ -141,3 +141,10 @@
 }
 
 
+.proposalTwo:nth-of-type(3){
+
+  break-before: page;
+
+  page-break-before: always;
+
+}
