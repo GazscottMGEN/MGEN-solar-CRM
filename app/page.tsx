@@ -460,6 +460,57 @@ setPdfStatus('PDF downloaded')
       </ul>
 
     </div>
+<div className="card">
+
+  <h2>Property Portfolio</h2>
+
+  <p className="sub">Landlord and letting agent property stock overview.</p>
+
+  <table>
+
+    <thead>
+
+      <tr>
+
+        <th>Address</th>
+
+        <th>Postcode</th>
+
+        <th>EPC</th>
+
+        <th>Value</th>
+
+        <th>Solar Potential</th>
+
+        <th>MEES Risk</th>
+
+      </tr>
+
+    </thead>
+
+    <tbody>
+
+      <tr>
+
+        <td>15 The Hawthorns</td>
+
+        <td>NE36 0DP</td>
+
+        <td>D</td>
+
+        <td>£220,000</td>
+
+        <td>High</td>
+
+        <td>Medium</td>
+
+      </tr>
+
+    </tbody>
+
+  </table>
+
+</div>
 
   </section>
 
