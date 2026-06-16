@@ -319,7 +319,7 @@ setPdfStatus('PDF downloaded')
           <div className="tagline">Powering smarter energy</div>
         </div>
         <nav className="nav">
-          {['Dashboard','Leads','Solar Calculator','Proposals','Customer Journey','Files','Commercial'].map(n => <NavButton key={n} name={n}/>)}
+          {['Dashboard','Leads','Solar Calculator','Proposals','Customer Journey','Files','Commercial','Landlord Portal'].map(n => <NavButton key={n} name={n}/>)}
         </nav>
         <div className="userBox"><strong>Gary Scott</strong><span>Sales Manager</span></div>
       </aside>
@@ -405,6 +405,66 @@ setPdfStatus('PDF downloaded')
             </div>
           </section>
         )}
+        {view === 'Landlord Portal' && (
+
+  <section className="layout3">
+
+    <div className="card">
+
+      <h2>Landlord Portal</h2>
+
+      <p className="sub">Property intelligence for landlords and letting agents.</p>
+
+      <div className="resultGrid">
+
+        <div className="resultBox"><span>Total Properties</span><strong>0</strong></div>
+
+        <div className="resultBox"><span>Properties at Risk</span><strong>0</strong></div>
+
+        <div className="resultBox"><span>Solar Upgrade Value</span><strong>£0</strong></div>
+
+        <div className="resultBox"><span>MEES Fine Exposure</span><strong>£0</strong></div>
+
+      </div>
+
+    </div>
+
+    <div className="card">
+
+      <h2>Property Checker</h2>
+
+      <p className="sub">Add a single property or bulk upload a landlord portfolio.</p>
+
+      <button className="btn primary">+ Add Property</button>
+
+      <button className="btn secondary">Bulk Upload CSV</button>
+
+    </div>
+
+    <div className="card">
+
+      <h2>V11 Roadmap</h2>
+
+      <ul>
+
+        <li>EPC rating lookup</li>
+
+        <li>MEES risk checker</li>
+
+        <li>Solar PV upgrade cost</li>
+
+        <li>Portfolio valuation</li>
+
+        <li>Letting agent dashboard</li>
+
+      </ul>
+
+    </div>
+
+  </section>
+
+)}
+
       </main>
 
       {leadModal && (
