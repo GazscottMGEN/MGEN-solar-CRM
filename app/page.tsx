@@ -267,17 +267,17 @@ export default function Home() {
 
   pdf.addImage(imgData, 'JPEG', 12.5, position, imgW, imgH)
 
-  heightLeft -= 297
+  heightLeft -= 270
 
   while (heightLeft > 0) {
 
-    position -= 297
+    position -= 270
 
     pdf.addPage()
 
     pdf.addImage(imgData, 'JPEG', 12.5, position, imgW, imgH)
 
-    heightLeft -= 297
+    heightLeft -= 270
 
   }
 
