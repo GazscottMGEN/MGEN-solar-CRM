@@ -239,7 +239,7 @@ export default function Home() {
 
   const canvas = await html2canvas(pages[i], {
 
-    scale: 2,
+    scale: 1.2,
 
     useCORS: true,
 
@@ -257,7 +257,7 @@ export default function Home() {
 
   }
 
-  const imgW = 210
+  const imgW = 185
 
   const imgH = (canvas.height * imgW) / canvas.width
 
@@ -265,7 +265,7 @@ export default function Home() {
 
   let position = 0
 
-  pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
+  pdf.addImage(imgData, 'JPEG', 12.5, position, imgW, imgH)
 
   heightLeft -= 297
 
@@ -275,7 +275,7 @@ export default function Home() {
 
     pdf.addPage()
 
-    pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
+    pdf.addImage(imgData, 'JPEG', 12.5, position, imgW, imgH)
 
     heightLeft -= 297
 
